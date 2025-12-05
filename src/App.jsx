@@ -19,7 +19,7 @@ function App() {
           <Route path="routes" element={<RouteManager />} />
           
           {/* Placeholder for future Feedbacks page */}
-          <Route path="feedbacks" element={<div style={{padding: 20}}>Feedback Page Coming Soon</div>} />
+          <Route path="feedbacks" element={<div style={{padding: 20, color: 'black'}}>Feedback Page Coming Soon</div>} />
           
         </Route>
       </Routes>

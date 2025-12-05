@@ -79,7 +79,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <div style={{ padding: 30 }}>Loading Dashboard...</div>;
+  if (loading) return <div style={{ padding: 30 , color: 'black'}}>Loading Dashboard...</div>;
 
   return (
     <div style={{ padding: '30px' }}>
