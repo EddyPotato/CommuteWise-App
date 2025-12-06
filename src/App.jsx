@@ -1,18 +1,23 @@
+// CommuteWise - App.jsx
+// Version: Rollback (Admin-Only Architecture)
+
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient'; 
 
-// --- Admin Pages & Layouts ---
+// --- LAYOUTS ---
 import AdminLayout from './layouts/AdminLayout';
+
+// --- PAGES ---
 import Dashboard from './pages/Dashboard';
 import RouteManager from './pages/RouteManager';
 import FeedbackManager from './pages/FeedbackManager';
 import AdminManagement from './pages/AdminManagement';
-import Analytics from './pages/Analytics'; // NEW IMPORT
+import Analytics from './pages/Analytics';
 import Login from './pages/Login';
 
-// --- Embedded Activity Tracker Logic (Production Ready) ---
-const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes (Updated as per request)
+// --- ACTIVITY TRACKER (Auto Logout) ---
+const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
 
 const ActivityTracker = () => {
     const timeoutRef = useRef(null);
@@ -25,15 +30,13 @@ const ActivityTracker = () => {
     };
 
     const resetTimer = () => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(handleInactivityTimeout, INACTIVITY_TIMEOUT_MS);
     };
 
     useEffect(() => {
         resetTimer();
-        const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'visibilitychange'];
+        const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
         activityEvents.forEach(event => window.addEventListener(event, resetTimer));
 
         return () => {
@@ -45,6 +48,7 @@ const ActivityTracker = () => {
     return null;
 };
 
+// --- PROTECTED ROUTE WRAPPER ---
 const ProtectedRoute = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +75,9 @@ const ProtectedRoute = ({ children }) => {
     );
   }
   
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <>
@@ -81,24 +87,31 @@ const ProtectedRoute = ({ children }) => {
   );
 };
 
-// --- Main Application Router ---
+// --- MAIN ROUTER ---
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        
+        {/* PUBLIC ROUTE */}
         <Route path="/login" element={<Login />} />
         
+        {/* PROTECTED ROUTES (Root is Dashboard) */}
         <Route path="/" element={
           <ProtectedRoute>
             <AdminLayout />
           </ProtectedRoute>
         }>
           <Route index element={<Dashboard />} />
-          <Route path="analytics" element={<Analytics />} /> {/* NEW ROUTE */}
+          <Route path="analytics" element={<Analytics />} />
           <Route path="routes" element={<RouteManager />} />
           <Route path="feedbacks" element={<FeedbackManager />} />
           <Route path="admin-management" element={<AdminManagement />} />
         </Route>
+
+        {/* Catch-all: Redirect to Dashboard */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </BrowserRouter>
   );

@@ -777,7 +777,7 @@ export default function RouteManager() {
           {activeView === 'map' && (
              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                 <MapContainer center={[14.6, 121.0]} zoom={13} style={{ height: '100%', width: '100%' }}>
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <MapClicker />
                     <MapController focusLocation={focusLocation} />
                     {!isRelocating && routes.map(r => r.parsedPolyline && <GeoJSON key={`route-${r.id}-${hoveredRouteId === r.id ? 'focused' : 'dimmed'}`} data={r.parsedPolyline} style={() => ({ color: getRouteColor(r.mode), weight: hoveredRouteId === r.id ? 8 : 5, opacity: hoveredRouteId ? (hoveredRouteId === r.id ? 1 : 0.1) : 0.8 })} />)}

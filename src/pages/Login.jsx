@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+// CommuteWise - Login.jsx
+// Version: Rollback (Admin Only)
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, Loader2, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Imports the client we just created
+import { supabase } from '../supabaseClient'; 
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -10,135 +13,65 @@ export default function Login() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  // If already logged in, go to Dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) navigate('/', { replace: true });
+    });
+  }, [navigate]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      // AUTHENTICATION LOGIC:
-      // This sends the credentials to your Supabase project.
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       });
 
       if (error) throw error;
       
-      // If successful, Supabase sets a session in local storage.
-      // We then redirect to the dashboard.
-      navigate('/'); 
+      navigate('/'); // Go to Dashboard
     } catch (err) {
-      setError(err.message); // Displays "Invalid login credentials" or similar
+      setError(err.message); 
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Professional UI Styles ---
+  // --- STYLES ---
   const pageStyle = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '100vw',
-    height: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    fontFamily: '"Inter", "Segoe UI", sans-serif',
+    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    fontFamily: '"Inter", sans-serif',
     zIndex: 9999,
   };
 
   const cardStyle = {
-    width: '100%',
-    maxWidth: '400px',
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-    padding: '48px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '32px',
-    margin: '20px',
-    border: '1px solid #f1f5f9'
-  };
-
-  const headerStyle = {
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '12px'
-  };
-
-  const logoContainerStyle = {
-    width: '56px', 
-    height: '56px', 
-    backgroundColor: '#eff6ff', 
-    color: '#2563eb', 
-    borderRadius: '12px', 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    marginBottom: '8px'
-  };
-
-  const inputGroupStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px'
-  };
-
-  const labelStyle = {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: '#334155'
-  };
-
-  const inputWrapperStyle = {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center'
+    width: '100%', maxWidth: '400px', backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+    padding: '40px',
+    display: 'flex', flexDirection: 'column', gap: '24px',
+    margin: '20px', border: '1px solid #e2e8f0'
   };
 
   const inputStyle = {
-    width: '100%',
-    padding: '12px 16px 12px 44px',
-    borderRadius: '8px',
-    border: '1px solid #e2e8f0',
-    fontSize: '1rem',
-    color: '#1e293b',
-    outline: 'none',
-    backgroundColor: '#fff',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    boxSizing: 'border-box'
-  };
-
-  const iconStyle = {
-    position: 'absolute',
-    left: '14px',
-    color: '#94a3b8',
-    pointerEvents: 'none'
+    width: '100%', padding: '12px 16px 12px 44px',
+    borderRadius: '8px', border: '1px solid #e2e8f0',
+    fontSize: '1rem', color: '#1e293b', outline: 'none',
+    backgroundColor: '#fff', transition: 'all 0.2s', boxSizing: 'border-box'
   };
 
   const buttonStyle = {
-    width: '100%',
-    padding: '14px',
-    backgroundColor: '#2563eb',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    fontWeight: '600',
-    cursor: loading ? 'not-allowed' : 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    marginTop: '8px',
-    transition: 'background-color 0.2s ease',
-    opacity: loading ? 0.7 : 1
+    width: '100%', padding: '12px', backgroundColor: '#2563eb', color: 'white',
+    border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '600',
+    cursor: loading ? 'not-allowed' : 'pointer', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px',
+    transition: 'background-color 0.2s ease', opacity: loading ? 0.7 : 1
   };
 
   return (
@@ -146,105 +79,48 @@ export default function Login() {
       <div style={cardStyle}>
         
         {/* Header */}
-        <div style={headerStyle}>
-          <div style={logoContainerStyle}>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '56px', height: '56px', backgroundColor: '#eff6ff', color: '#2563eb', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ShieldCheck size={32} strokeWidth={2} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>Welcome Back</h1>
-            <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '6px 0 0 0' }}>Sign in to the Admin Portal</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Admin Portal</h1>
+            <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '4px 0 0 0' }}>Secure access only.</p>
           </div>
         </div>
 
         {/* Error Notification */}
         {error && (
-          <div style={{ 
-            backgroundColor: '#fef2f2', color: '#b91c1c', 
-            padding: '12px 16px', borderRadius: '8px', fontSize: '0.875rem', 
-            display: 'flex', alignItems: 'center', gap: '12px', 
-            border: '1px solid #fecaca' 
-          }}>
-            <AlertCircle size={20} className="flex-shrink-0" />
-            <span>{error}</span>
+          <div style={{ backgroundColor: '#fef2f2', color: '#b91c1c', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid #fecaca' }}>
+            <AlertCircle size={18} /> <span>{error}</span>
           </div>
         )}
 
         {/* Login Form */}
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          <div style={inputGroupStyle}>
-            <label style={labelStyle}>Email Address</label>
-            <div style={inputWrapperStyle}>
-              <Mail size={18} style={iconStyle} />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={inputStyle}
-                placeholder="admin@commutewise.com"
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#2563eb';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#e2e8f0';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
+          <div>
+            <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '6px' }}>Email Address</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Mail size={18} style={{ position: 'absolute', left: '14px', color: '#94a3b8' }} />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@commutewise.com" />
             </div>
           </div>
 
-          <div style={inputGroupStyle}>
-            <label style={labelStyle}>Password</label>
-            <div style={inputWrapperStyle}>
-              <Lock size={18} style={iconStyle} />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-                placeholder="••••••••"
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#2563eb';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#e2e8f0';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
+          <div>
+            <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '6px' }}>Password</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '14px', color: '#94a3b8' }} />
+              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} placeholder="••••••••" />
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading} 
-            style={buttonStyle}
-            onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#1d4ed8')}
-            onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#2563eb')}
-          >
-            {loading ? (
-                <>
-                    <Loader2 className="animate-spin" size={20} /> 
-                    <span>Authenticating...</span>
-                </>
-            ) : (
-              <>
-                <span>Sign In</span> 
-                <ArrowRight size={18} />
-              </>
-            )}
+          <button type="submit" disabled={loading} style={buttonStyle}>
+            {loading ? <><Loader2 className="animate-spin" size={20} /><span>Verifying...</span></> : <><span>Sign In</span><ArrowRight size={18} /></>}
           </button>
-
         </form>
 
-        {/* Footer */}
-        <div style={{ textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>
-          <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', fontWeight: '500' }}>
-            CommuteWise Admin Panel &bull; v1.0
-          </p>
+        <div style={{ textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '20px', fontSize: '0.8rem', color: '#94a3b8' }}>
+          CommuteWise v1.0 &bull; Authorized Personnel Only
         </div>
 
       </div>

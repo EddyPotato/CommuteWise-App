@@ -1,10 +1,19 @@
-import React from 'react';
+// CommuteWise - AdminLayout.jsx
+// Version: Rollback (Clean Admin Layout)
+
+import React, { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Map, MessageSquare, Shield, LogOut, Navigation, BarChart3 } from 'lucide-react';
 import { supabase } from '../supabaseClient'; 
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = "Admin Panel | CommuteWise";
+    const link = document.querySelector("link[rel~='icon']");
+    if (link) link.href = '/vite.svg'; // Or your admin logo
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -51,7 +60,6 @@ export default function AdminLayout() {
             <LayoutDashboard size={20} /> Dashboard
           </NavLink>
           
-          {/* NEW ANALYTICS TAB */}
           <NavLink to="/analytics" style={navClass}>
             <BarChart3 size={20} /> Analytics
           </NavLink>
