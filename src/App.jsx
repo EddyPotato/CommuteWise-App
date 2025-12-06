@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AdminLayout from './layouts/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import RouteManager from './pages/RouteManager';
+// 1. Import the new component
+import FeedbackManager from './pages/FeedbackManager'; 
 
 function App() {
   return (
@@ -18,8 +20,8 @@ function App() {
           {/* Route Manager Page */}
           <Route path="routes" element={<RouteManager />} />
           
-          {/* Placeholder for future Feedbacks page */}
-          <Route path="feedbacks" element={<div style={{padding: 20, color: 'black'}}>Feedback Page Coming Soon</div>} />
+          {/* 2. Replace the placeholder div with the component */}
+          <Route path="feedbacks" element={<FeedbackManager />} />
           
         </Route>
       </Routes>
