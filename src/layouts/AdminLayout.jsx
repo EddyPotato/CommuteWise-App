@@ -1,19 +1,17 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Map, MessageSquare, Shield, LogOut, Navigation } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Connecting to your real client
+import { LayoutDashboard, Map, MessageSquare, Shield, LogOut, Navigation, BarChart3 } from 'lucide-react';
+import { supabase } from '../supabaseClient'; 
 
 export default function AdminLayout() {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    // FIX: REAL LOGOUT FUNCTIONALITY connected to Supabase
     try {
         await supabase.auth.signOut();
-        navigate('/login'); // Redirects to the login page
+        navigate('/login'); 
     } catch (error) {
         console.error("Logout failed:", error);
-        // Fallback: If Supabase fails, still redirect locally
         navigate('/login');
     }
   };
@@ -53,6 +51,11 @@ export default function AdminLayout() {
             <LayoutDashboard size={20} /> Dashboard
           </NavLink>
           
+          {/* NEW ANALYTICS TAB */}
+          <NavLink to="/analytics" style={navClass}>
+            <BarChart3 size={20} /> Analytics
+          </NavLink>
+
           <NavLink to="/routes" style={navClass}>
             <Map size={20} /> Route Manager
           </NavLink>
@@ -73,7 +76,7 @@ export default function AdminLayout() {
         {/* Footer / Logout */}
         <div style={{ padding: '20px', borderTop: '1px solid #334155' }}>
           <button 
-            onClick={handleLogout} // Calls the real Supabase sign-out function
+            onClick={handleLogout} 
             style={{ 
               display: 'flex', gap: '10px', background: 'transparent', border: 'none', 
               color: '#ef4444', cursor: 'pointer', fontSize: '1rem', padding: '10px', width: '100%', justifyContent: 'flex-start'

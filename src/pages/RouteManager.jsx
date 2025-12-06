@@ -1,5 +1,5 @@
 // CommuteWise - RouteManager.jsx
-// Version: December 6, 2025 - 11.0 (Persistent Notifications, QA Fixes)
+// Version: December 6, 2025 - 17.0 (FIXED: Seamless Search Highlighting)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
@@ -9,7 +9,7 @@ import {
   Trash2, Network, X, Search, Edit2, 
   ChevronDown, ChevronRight, Map as MapIcon, 
   List, LayoutGrid, Ticket, Plus, 
-  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Crosshair, Clock, Ruler, Info, Save, Ban
+  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Crosshair, Clock, Ruler, Info, Save, Ban, LogOut
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -39,6 +39,7 @@ const styles = `
   }
 
   @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 `;
 
 // --- GLOBAL CONSTANTS ---
@@ -50,6 +51,27 @@ const COMMON_INPUT_STYLE = {
 
 const LABEL_STYLE = {
   display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '0.9rem'
+};
+
+// --- UTILS: HIGHLIGHTING (FIXED: Seamless merging) ---
+const escapeRegExp = (string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const HighlightText = ({ text, highlight }) => {
+    if (!highlight || !text) return <>{text}</>;
+    const regex = new RegExp(`(${escapeRegExp(highlight)})`, 'gi');
+    const parts = text.toString().split(regex);
+    return (
+        <>
+            {parts.map((part, i) => 
+                regex.test(part) ? (
+                    // Removed borderRadius to prevents gaps between adjacent matches like "bagbag"
+                    <span key={i} style={{ backgroundColor: '#fef08a', color: 'inherit', padding: 0, margin: 0 }}>{part}</span>
+                ) : ( part )
+            )}
+        </>
+    );
 };
 
 // --- HELPER: MAP CONTROLLER ---
@@ -203,7 +225,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = false, level = 1, i
 };
 
 // --- INLINE ROUTE EDITOR ---
-const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate }) => {
+const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTerm }) => {
     const [localStops, setLocalStops] = useState(route.waypoints || []);
     const [isModified, setIsModified] = useState(false);
     const dragItem = useRef();
@@ -269,7 +291,7 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getRouteColor(route.mode) }}></div>
-                        {route.route_name || 'Unnamed Route'}
+                        <HighlightText text={route.route_name || 'Unnamed Route'} highlight={highlightTerm} />
                         {route.strict_stops && <span style={{ fontSize: '0.7rem', backgroundColor: '#fee2e2', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca' }}>STRICT</span>}
                     </div>
                     <button onClick={() => onDelete(route.id, route.route_name)} style={{ padding: '4px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={18}/></button>
@@ -322,15 +344,15 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate }) => {
     );
 };
 
-// --- TIMEOUT MODAL ---
+// --- TIMEOUT MODAL (HIGH Z-INDEX) ---
 const SessionTimeoutModal = ({ onClose }) => (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', textAlign: 'center', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
             <div style={{ width: '60px', height: '60px', backgroundColor: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
-                <Clock size={32} color="#ef4444" />
+                <LogOut size={32} color="#ef4444" />
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '10px' }}>Session Expired</h2>
-            <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>You have been logged out due to inactivity. Please log in again to continue managing routes.</p>
+            <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>You have been logged out due to inactivity. Please log in again to continue.</p>
             <button onClick={onClose} style={{ width: '100%', padding: '12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer' }}>Return to Login</button>
         </div>
     </div>
@@ -357,6 +379,8 @@ export default function RouteManager() {
   const [isSessionTimeout, setIsSessionTimeout] = useState(false); 
   const [inlineEditTarget, setInlineEditTarget] = useState(null);
 
+  // --- REAL ACTIVITY TRACKER ---
+  const lastActivityRef = useRef(Date.now());
   const dragItem = useRef();
   const dragOverItem = useRef();
   const [pendingRouteData, setPendingRouteData] = useState(null);
@@ -370,15 +394,46 @@ export default function RouteManager() {
     eta: '15', fare: '15', discountedFare: '12', barangay: '', isFreeRide: false
   });
 
+  // Track User Events to Reset Timer
+  useEffect(() => {
+    const handleUserActivity = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity);
+    
+    const INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 mins
+    const WARNING_BEFORE_MS = 10000; // 10s
+
+    const interval = setInterval(() => {
+        const idleTime = Date.now() - lastActivityRef.current;
+        if (idleTime >= INACTIVITY_LIMIT_MS) {
+            setIsSessionTimeout(true);
+            setNotification(null); // Clear warning when modal shows
+        } else if (idleTime >= (INACTIVITY_LIMIT_MS - WARNING_BEFORE_MS)) {
+            if (!isSessionTimeout) {
+                const remaining = Math.ceil((INACTIVITY_LIMIT_MS - idleTime) / 1000);
+                // Persistent Sticky Notification
+                setNotification({ message: `Session expiring in ${remaining}s due to inactivity. Move mouse to cancel.`, type: 'warning', sticky: true });
+            }
+        } else {
+             // Clear warning if user becomes active again
+             setNotification(prev => (prev?.type === 'warning' ? null : prev));
+        }
+    }, 1000);
+
+    return () => {
+        window.removeEventListener('mousemove', handleUserActivity);
+        window.removeEventListener('keydown', handleUserActivity);
+        window.removeEventListener('click', handleUserActivity);
+        window.removeEventListener('scroll', handleUserActivity);
+        clearInterval(interval);
+    };
+  }, [isSessionTimeout]);
+
+  // General Fetching
   useEffect(() => { fetchData(); }, []);
   
-  // --- MOCK SESSION TIMEOUT LOGIC ---
-  useEffect(() => {
-      const warningTimer = setTimeout(() => { showNotification("Session will expire in 10 seconds due to inactivity.", "warning", true); }, 50000); 
-      const logoutTimer = setTimeout(() => { setIsSessionTimeout(true); }, 60000); 
-      return () => { clearTimeout(warningTimer); clearTimeout(logoutTimer); };
-  }, []);
-
   // Notification Auto-Dismiss (Skip if sticky)
   useEffect(() => { 
       if (notification && !notification.sticky) { 
@@ -386,6 +441,12 @@ export default function RouteManager() {
           return () => clearTimeout(timer); 
       } 
   }, [notification]);
+
+  // FORCE LOGOUT HANDLER
+  const handleForceLogout = async () => {
+      await supabase.auth.signOut();
+      window.location.href = '/'; // Hard redirect to Login
+  };
 
   const fetchData = async () => {
     const { data: sData } = await supabase.from('stops').select('*, lat, lng');
@@ -399,12 +460,18 @@ export default function RouteManager() {
   const showNotification = (message, type = 'info', sticky = false) => { setNotification({ message, type, sticky }); };
 
   const getGroupedTerminals = () => {
+      const query = searchTerm.toLowerCase();
       const terminals = stops.filter(s => {
-          const isTerminal = s.type === 'terminal';
-          const query = searchTerm.toLowerCase();
+          if (s.type !== 'terminal') return false;
+          // Deep Search: Check Terminal Name OR Barangay OR Associated Routes
           const nameMatch = s.name?.toLowerCase().includes(query);
           const barangayMatch = s.barangay?.toLowerCase().includes(query);
-          return isTerminal && (searchTerm === '' || nameMatch || barangayMatch);
+          
+          // Check if ANY route in this terminal matches the search
+          const terminalRoutes = routes.filter(r => r.source === s.id || r.target === s.id);
+          const routeMatch = terminalRoutes.some(r => r.route_name?.toLowerCase().includes(query));
+
+          return query === '' || nameMatch || barangayMatch || routeMatch;
       });
       const grouped = {};
       terminals.forEach(t => { const bg = t.barangay || 'Unassigned'; if (!grouped[bg]) grouped[bg] = []; grouped[bg].push(t); });
@@ -640,18 +707,24 @@ export default function RouteManager() {
 
   const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setIsRelocating(false); setPendingNodeData(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
 
+  // SECURE RENDER: If Timeout, HIDE Dashboard content entirely
+  if (isSessionTimeout) {
+      return <SessionTimeoutModal onForceLogout={handleForceLogout} />;
+  }
+
   return (
     <div style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <style>{styles}</style>
       
-      {isSessionTimeout && <SessionTimeoutModal onClose={() => window.location.reload()} />}
-
       {/* NOTIFICATION (BOTTOM RIGHT) */}
       {notification && (
-          <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 2000, backgroundColor: notification.type === 'error' ? '#fee2e2' : notification.type === 'warning' ? '#fef3c7' : '#dcfce7', border: `1px solid ${notification.type === 'error' ? '#ef4444' : notification.type === 'warning' ? '#f59e0b' : '#22c55e'}`, color: notification.type === 'error' ? '#b91c1c' : notification.type === 'warning' ? '#b45309' : '#15803d', padding: '12px 20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '10px', animation: 'fadeIn 0.3s ease-in-out' }}>
-            {notification.type === 'error' ? <AlertCircle size={20}/> : notification.type === 'warning' ? <AlertTriangle size={20} /> : <CheckCircle size={20}/>} 
-            <span style={{ fontWeight: 500 }}>{notification.message}</span>
-            <button onClick={() => setNotification(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', marginLeft: '8px', display: 'flex', alignItems: 'center' }}><X size={16}/></button>
+          <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 2000, backgroundColor: notification.type === 'error' ? '#fee2e2' : notification.type === 'warning' ? '#fffbeb' : '#dcfce7', border: `1px solid ${notification.type === 'error' ? '#ef4444' : notification.type === 'warning' ? '#f59e0b' : '#22c55e'}`, color: notification.type === 'error' ? '#b91c1c' : notification.type === 'warning' ? '#b45309' : '#15803d', padding: '16px 20px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '12px', animation: 'slideIn 0.3s ease-out', pointerEvents: 'auto', minWidth: '300px' }}>
+            {notification.type === 'error' ? <AlertCircle size={24}/> : notification.type === 'warning' ? <AlertTriangle size={24} /> : <CheckCircle size={24}/>} 
+            <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, display: 'block', marginBottom: '2px' }}>{notification.type === 'error' ? 'Error' : notification.type === 'warning' ? 'Warning' : 'Success'}</span>
+                <HighlightText text={notification.message} highlight={null} />
+            </div>
+            <button onClick={() => setNotification(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', opacity: 0.6 }}><X size={18}/></button>
           </div>
       )}
 
@@ -722,11 +795,11 @@ export default function RouteManager() {
           {activeView === 'terminals' && (
               <div className="custom-scrollbar" style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '40px', backgroundColor: '#f9fafb' }}>
                  <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-                    <div style={{ backgroundColor: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '10px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'start' }}><Info size={20} color="#3b82f6" style={{ marginTop: '2px' }} /><div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#1e40af', fontWeight: 'bold' }}>Managing Routes</h4><p style={{ margin: 0, fontSize: '0.85rem', color: '#1e3a8a' }}>Use the "Create Route" button to build new paths. You can drag and drop stops within the route cards to reorder them efficiently.</p></div></div>
+                    <div style={{ backgroundColor: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '10px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'start' }}><Info size={20} color="#3b82f6" style={{ marginTop: '2px' }} /><div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#1e40af', fontWeight: 'bold' }}>Managing Routes</h4><p style={{ margin: 0, fontSize: '0.85rem', color: '#1e3a8a' }}>Use the "New Route" button to build new paths. You can drag and drop stops within the route cards to reorder them efficiently.</p></div></div>
                     <div style={{ marginBottom: '30px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><h2 style={{ fontSize: '1.5rem', color: '#111827', margin: 0 }}>Terminals & Routes</h2></div><div style={{ position: 'relative' }}><Search size={20} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 10 }} /><input type="text" placeholder="Search terminal name or barangay..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 42px', borderRadius: '12px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '1rem', color: '#1f2937', backgroundColor: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', boxSizing: 'border-box' }} /></div></div>
                     {Object.keys(getGroupedTerminals()).length > 0 ? (
                         Object.entries(getGroupedTerminals()).map(([barangayName, terminals]) => (
-                            <CollapsibleSection key={barangayName} title={barangayName} level={1} defaultOpen={true} rightLabel={`${terminals.length} Terminals`}>
+                            <CollapsibleSection key={barangayName} title={<HighlightText text={barangayName} highlight={searchTerm} />} level={1} defaultOpen={true} rightLabel={`${terminals.length} Terminals`}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
                                     {terminals.map(terminal => {
                                         const terminalColor = getTerminalColor(terminal.name);
@@ -734,12 +807,12 @@ export default function RouteManager() {
                                         return (
                                             <div key={terminal.id} style={{ padding: '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', borderLeft: `6px solid ${terminalColor}`, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid #f3f4f6', paddingBottom: '15px' }}>
-                                                    <div><h3 style={{ margin: '0 0 6px 0', fontWeight: '800', fontSize: '1.25rem', color: '#1f2937' }}>{terminal.name}</h3><div style={{ display: 'flex', gap: '8px' }}>{terminal.allowed_vehicles?.map(v => <span key={v} style={{ background: '#f3f4f6', color: '#4b5563', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{v}</span>)}</div></div>
+                                                    <div><h3 style={{ margin: '0 0 6px 0', fontWeight: '800', fontSize: '1.25rem', color: '#1f2937' }}><HighlightText text={terminal.name} highlight={searchTerm} /></h3><div style={{ display: 'flex', gap: '8px' }}>{terminal.allowed_vehicles?.map(v => <span key={v} style={{ background: '#f3f4f6', color: '#4b5563', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{v}</span>)}</div></div>
                                                     <div style={{ display: 'flex', gap: '8px' }}><button onClick={() => { setPreviousView('terminals'); setActiveView('map'); openModal('ADD_ROUTE', null, false, terminal); }} style={{ padding: '8px', color: '#10b981', background: '#ecfdf5', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center' }}><PlusCircle size={16} /> New Route</button><button onClick={() => { setPreviousView('terminals'); setActiveView('map'); openModal('ADD_NODE', terminal); }} style={{ padding: '8px', color: '#3b82f6', background: '#eff6ff', borderRadius: '6px', border: 'none', cursor: 'pointer' }}><Edit2 size={18}/></button><button onClick={() => deleteItemWithConfirmation('stops', terminal.id, terminal.name)} style={{ padding: '8px', color: '#ef4444', background: '#fef2f2', borderRadius: '6px', border: 'none', cursor: 'pointer' }}><Trash2 size={18}/></button></div>
                                                 </div>
                                                 <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Routes ({routesInTerminal.length})</h4>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                                    {routesInTerminal.length > 0 ? routesInTerminal.map(r => <RouteCard key={r.id} route={r} stops={stops} onDelete={deleteItemWithConfirmation} onMapSelect={handleInlineMapSelect} onUpdate={handleRouteUpdate} />) : <div style={{ fontStyle: 'italic', color: '#9ca3af', padding: '10px' }}>No routes configured.</div>}
+                                                    {routesInTerminal.length > 0 ? routesInTerminal.map(r => <RouteCard key={r.id} route={r} stops={stops} onDelete={deleteItemWithConfirmation} onMapSelect={handleInlineMapSelect} onUpdate={handleRouteUpdate} highlightTerm={searchTerm} />) : <div style={{ fontStyle: 'italic', color: '#9ca3af', padding: '10px' }}>No routes configured.</div>}
                                                 </div>
                                             </div>
                                         );

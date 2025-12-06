@@ -1,3 +1,6 @@
+// CommuteWise - FeedbackManager.jsx
+// Version: Production 1.0
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
@@ -7,7 +10,8 @@ import {
   MessageSquare, 
   Loader2, 
   Search,
-  AlertCircle
+  AlertCircle,
+  RefreshCw // Added Refresh Icon
 } from 'lucide-react';
 
 export default function FeedbackManager() {
@@ -90,7 +94,7 @@ export default function FeedbackManager() {
 
   const containerStyle = { 
     padding: '30px', 
-    fontFamily: 'sans-serif', 
+    fontFamily: 'Inter, sans-serif', 
     minHeight: '100vh', 
     background: '#f8fafc',
     color: '#1e293b' 
@@ -108,7 +112,7 @@ export default function FeedbackManager() {
   const titleStyle = { 
     color: '#1e293b', 
     fontSize: '1.5rem', 
-    fontWeight: 'bold', 
+    fontWeight: '800', 
     display: 'flex', 
     alignItems: 'center', 
     gap: '10px' 
@@ -121,48 +125,55 @@ export default function FeedbackManager() {
     outline: 'none',
     width: '250px',
     color: '#334155',
-    background: 'white'
+    background: 'white',
+    fontSize: '0.9rem'
   };
 
   const getButtonStyle = (isActive, activeColor, activeBg) => ({
     padding: '8px 16px',
-    borderRadius: '6px',
-    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    border: isActive ? `1px solid ${activeColor}` : '1px solid #e2e8f0',
     background: isActive ? activeBg : 'white',
     color: isActive ? activeColor : '#64748b',
     cursor: 'pointer',
-    fontWeight: '500',
-    fontSize: '0.9rem',
-    marginLeft: '5px'
+    fontWeight: '600',
+    fontSize: '0.85rem',
+    marginLeft: '8px',
+    transition: 'all 0.2s'
   });
 
   const cardContainerStyle = {
     background: 'white',
     borderRadius: '12px',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-    overflow: 'hidden'
+    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
+    overflow: 'hidden',
+    border: '1px solid #e2e8f0'
   };
 
   const itemStyle = {
     padding: '20px', 
     borderBottom: '1px solid #f1f5f9', 
     display: 'flex', 
-    gap: '15px',
-    alignItems: 'flex-start'
+    gap: '20px',
+    alignItems: 'flex-start',
+    transition: 'background-color 0.2s'
   };
 
   const statusBadgeStyle = (status) => ({
-    display: 'inline-block',
+    display: 'inline-flex',
+    alignItems: 'center',
     padding: '4px 10px', 
-    borderRadius: '12px', 
+    borderRadius: '9999px', 
     fontSize: '0.75rem', 
     fontWeight: '600',
     background: status === 'Resolved' ? '#ecfdf5' : '#fffbeb',
     color: status === 'Resolved' ? '#047857' : '#b45309',
-    border: `1px solid ${status === 'Resolved' ? '#a7f3d0' : '#fde68a'}`
+    border: `1px solid ${status === 'Resolved' ? '#a7f3d0' : '#fde68a'}`,
+    textTransform: 'uppercase',
+    letterSpacing: '0.025em'
   });
 
-  const actionButtonStyle = (bgColor, textColor) => ({
+  const actionButtonStyle = (bgColor, textColor, hoverColor) => ({
     border: 'none', 
     background: bgColor, 
     color: textColor, 
@@ -173,7 +184,8 @@ export default function FeedbackManager() {
     display: 'flex', 
     alignItems: 'center', 
     gap: '6px', 
-    fontWeight: '500' 
+    fontWeight: '600',
+    transition: 'background 0.2s'
   });
 
   // --- RENDER ---
@@ -185,19 +197,31 @@ export default function FeedbackManager() {
       <div style={headerStyle}>
         <div>
           <h1 style={titleStyle}>
-            <MessageSquare size={24} color="#4f46e5" />
+            <MessageSquare size={28} color="#4f46e5" />
             User Feedback
           </h1>
-          <p style={{ color: '#64748b', marginTop: '5px', fontSize: '0.95rem' }}>Manage and respond to commuter reports.</p>
+          <p style={{ color: '#64748b', marginTop: '4px', fontSize: '0.9rem' }}>Manage and respond to commuter reports.</p>
         </div>
         
         {/* Controls */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          <button 
+            onClick={fetchFeedbacks} 
+            title="Refresh Feedbacks"
+            style={{ 
+                background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', 
+                padding: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            }}
+          >
+            <RefreshCw size={18} color="#475569" className={loading ? "animate-spin" : ""} />
+          </button>
+
           <div style={{ position: 'relative' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input 
               type="text" 
-              placeholder="Search..." 
+              placeholder="Search users or messages..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={searchInputStyle}
@@ -230,27 +254,28 @@ export default function FeedbackManager() {
       {/* Content */}
       <div style={cardContainerStyle}>
         {loading ? (
-          <div style={{ padding: '50px', textAlign: 'center', color: '#94a3b8' }}>
-            <Loader2 className="animate-spin" style={{ margin: '0 auto 10px', display: 'block' }} />
-            Loading feedback...
+          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+            <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto 15px', display: 'block', color: '#cbd5e1' }} />
+            <span style={{fontWeight: 500}}>Loading feedback...</span>
           </div>
         ) : filteredFeedbacks.length === 0 ? (
-          <div style={{ padding: '50px', textAlign: 'center', color: '#94a3b8' }}>
-            <p>No feedback found.</p>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+            <MessageSquare size={48} style={{ opacity: 0.2, marginBottom: '15px' }} />
+            <p style={{fontWeight: 500}}>No feedbacks found matching your criteria.</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {filteredFeedbacks.map((item) => (
-              <div key={item.id} style={itemStyle}>
+              <div key={item.id} style={itemStyle} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}>
                 
                 {/* Icon Status */}
                 <div style={{ flexShrink: 0, marginTop: '2px' }}>
                   {item.status === 'Resolved' ? (
-                    <div style={{ background: '#d1fae5', padding: '8px', borderRadius: '50%', color: '#059669' }}>
+                    <div style={{ background: '#d1fae5', padding: '10px', borderRadius: '50%', color: '#059669' }}>
                       <CheckCircle size={20} />
                     </div>
                   ) : (
-                    <div style={{ background: '#fef3c7', padding: '8px', borderRadius: '50%', color: '#d97706' }}>
+                    <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '50%', color: '#d97706' }}>
                       <AlertCircle size={20} />
                     </div>
                   )}
@@ -258,15 +283,15 @@ export default function FeedbackManager() {
 
                 {/* Main Content */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#1e293b' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b', fontWeight: '700' }}>
                       {item.user_name || 'Anonymous User'}
                     </h3>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() + ' ' + new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                     </span>
                   </div>
-                  <p style={{ margin: '0 0 10px', color: '#475569', lineHeight: '1.5', fontSize: '0.9rem' }}>
+                  <p style={{ margin: '0 0 12px', color: '#475569', lineHeight: '1.6', fontSize: '0.95rem' }}>
                     {item.message}
                   </p>
                   
@@ -281,6 +306,8 @@ export default function FeedbackManager() {
                     <button
                       onClick={() => updateStatus(item.id, 'Resolved')}
                       style={actionButtonStyle('#ecfdf5', '#047857')}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
                     >
                       <CheckCircle size={14} /> Resolve
                     </button>
@@ -289,6 +316,8 @@ export default function FeedbackManager() {
                     <button
                       onClick={() => updateStatus(item.id, 'Pending')}
                       style={actionButtonStyle('#fffbeb', '#b45309')}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef3c7'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fffbeb'}
                     >
                       <XCircle size={14} /> Reopen
                     </button>
@@ -296,6 +325,8 @@ export default function FeedbackManager() {
                   <button
                     onClick={() => deleteFeedback(item.id)}
                     style={actionButtonStyle('transparent', '#ef4444')}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     <Trash2 size={14} /> Delete
                   </button>
