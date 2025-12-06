@@ -1,5 +1,5 @@
 // CommuteWise - AdminLayout.jsx
-// Version: Rollback (Clean Admin Layout)
+// Version: Production 1.2 (Route Updates)
 
 import React, { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
@@ -18,10 +18,10 @@ export default function AdminLayout() {
   const handleLogout = async () => {
     try {
         await supabase.auth.signOut();
-        navigate('/login'); 
+        navigate('/admin-login'); // FIXED: New Login URL
     } catch (error) {
         console.error("Logout failed:", error);
-        navigate('/login');
+        navigate('/admin-login');
     }
   };
 
@@ -56,7 +56,9 @@ export default function AdminLayout() {
 
         {/* Navigation Links */}
         <nav style={{ flex: 1, padding: '20px 0', overflowY: 'auto' }}>
-          <NavLink to="/" style={navClass}>
+          
+          {/* UPDATED: Points to /dashboard */}
+          <NavLink to="/dashboard" style={navClass}>
             <LayoutDashboard size={20} /> Dashboard
           </NavLink>
           

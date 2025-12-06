@@ -1,14 +1,15 @@
 // CommuteWise - Login.jsx
-// Version: Rollback (Admin Only)
+// Version: Production 1.3 (Password Toggle + Redirects to Dashboard)
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Loader2, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import { Lock, Mail, Loader2, ShieldCheck, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../supabaseClient'; 
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // Toggle State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export default function Login() {
   // If already logged in, go to Dashboard
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate('/', { replace: true });
+      if (session) navigate('/dashboard', { replace: true });
     });
   }, [navigate]);
 
@@ -33,7 +34,7 @@ export default function Login() {
 
       if (error) throw error;
       
-      navigate('/'); // Go to Dashboard
+      navigate('/dashboard'); // Redirect to specific Dashboard route
     } catch (err) {
       setError(err.message); 
     } finally {
@@ -63,7 +64,8 @@ export default function Login() {
     width: '100%', padding: '12px 16px 12px 44px',
     borderRadius: '8px', border: '1px solid #e2e8f0',
     fontSize: '1rem', color: '#1e293b', outline: 'none',
-    backgroundColor: '#fff', transition: 'all 0.2s', boxSizing: 'border-box'
+    backgroundColor: '#ffffff', // Force White Background
+    transition: 'all 0.2s', boxSizing: 'border-box'
   };
 
   const buttonStyle = {
@@ -110,7 +112,21 @@ export default function Login() {
             <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '6px' }}>Password</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Lock size={18} style={{ position: 'absolute', left: '14px', color: '#94a3b8' }} />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} placeholder="••••••••" />
+              <input 
+                type={showPassword ? "text" : "password"} // Toggle Type
+                required 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                style={{...inputStyle, paddingRight: '40px'}} // Extra padding for eye icon
+                placeholder="••••••••" 
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 

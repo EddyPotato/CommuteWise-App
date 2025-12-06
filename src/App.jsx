@@ -1,5 +1,5 @@
 // CommuteWise - App.jsx
-// Version: Rollback (Admin-Only Architecture)
+// Version: Production 1.2 (Admin Routes Updated)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
@@ -26,7 +26,7 @@ const ActivityTracker = () => {
     const handleInactivityTimeout = async () => {
         console.log("Session timed out due to inactivity.");
         await supabase.auth.signOut();
-        navigate('/login', { replace: true });
+        navigate('/admin-login', { replace: true }); // Redirects to new Login URL
     };
 
     const resetTimer = () => {
@@ -76,7 +76,7 @@ const ProtectedRoute = ({ children }) => {
   }
   
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin-login" replace />; // Redirects to new Login URL
   }
 
   return (
@@ -93,16 +93,19 @@ function App() {
     <BrowserRouter>
       <Routes>
         
-        {/* PUBLIC ROUTE */}
-        <Route path="/login" element={<Login />} />
+        {/* PUBLIC ROUTE: NEW URL */}
+        <Route path="/admin-login" element={<Login />} />
         
-        {/* PROTECTED ROUTES (Root is Dashboard) */}
+        {/* PROTECTED ROUTES */}
         <Route path="/" element={
           <ProtectedRoute>
             <AdminLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<Dashboard />} />
+          {/* Redirect root '/' to '/dashboard' */}
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="routes" element={<RouteManager />} />
           <Route path="feedbacks" element={<FeedbackManager />} />
@@ -110,7 +113,7 @@ function App() {
         </Route>
 
         {/* Catch-all: Redirect to Dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
       </Routes>
     </BrowserRouter>
