@@ -1,5 +1,5 @@
 // CommuteWise - Dashboard.jsx
-// Version: Production 1.0 (Optimized & Real Data)
+// Version: Production 1.1 (Responsive Mobile Layout)
 
 import React, { useEffect, useState } from 'react';
 import { Map, MapPin, CheckCircle, MessageSquare, RefreshCw, Loader2, ArrowRight } from 'lucide-react';
@@ -12,6 +12,15 @@ const styles = `
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(209, 213, 219, 0.4); border-radius: 10px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(156, 163, 175, 0.6); }
+
+  /* Mobile Responsive Adjustments */
+  @media (max-width: 640px) {
+    .dashboard-container { padding: 20px !important; }
+    .dashboard-header { flex-direction: column; align-items: flex-start !important; gap: 15px; }
+    .header-btn { width: 100%; justify-content: center; }
+    .stat-card-text { font-size: 0.8rem !important; }
+    .stat-card-value { font-size: 1.5rem !important; }
+  }
 `;
 
 // --- COMPONENT: STAT CARD ---
@@ -29,8 +38,8 @@ const StatCard = ({ title, value, icon: Icon, color, loading }) => (
       <Icon size={28} strokeWidth={2.5} />
     </div>
     <div>
-      <div style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: '600', marginBottom: '4px' }}>{title}</div>
-      <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1e293b', lineHeight: 1 }}>
+      <div className="stat-card-text" style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: '600', marginBottom: '4px' }}>{title}</div>
+      <div className="stat-card-value" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1e293b', lineHeight: 1 }}>
         {loading ? <div style={{ height: '28px', width: '40px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }}></div> : value}
       </div>
     </div>
@@ -94,16 +103,17 @@ export default function Dashboard() {
   });
 
   return (
-    <div style={{ padding: '40px', fontFamily: 'Inter, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#1e293b' }}>
+    <div className="dashboard-container" style={{ padding: '40px', fontFamily: 'Inter, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#1e293b' }}>
       <style>{styles}</style>
       
       {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
             <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800', color: '#0f172a' }}>Dashboard Overview</h1>
             <p style={{ margin: '5px 0 0', color: '#64748b' }}>Welcome back, Admin. Here is what's happening today.</p>
         </div>
         <button 
+            className="header-btn"
             onClick={fetchDashboardData} 
             disabled={loading}
             style={{ 
@@ -130,7 +140,7 @@ export default function Dashboard() {
       <div style={{ background: 'white', borderRadius: '16px', padding: '0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#1e293b' }}>Recent User Feedback</h3>
-            <button onClick={() => navigate('/feedback-manager')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem' }}>
+            <button onClick={() => navigate('/feedbacks')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem' }}>
                 View All <ArrowRight size={16} />
             </button>
         </div>
@@ -142,33 +152,36 @@ export default function Dashboard() {
         ) : recentFeedbacks.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No feedbacks received yet.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ backgroundColor: '#f8fafc' }}>
-              <tr>
-                <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>User / Message</th>
-                <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Date</th>
-                <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentFeedbacks.map((fb, index) => (
-                <tr key={fb.id} style={{ borderBottom: index !== recentFeedbacks.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = '#fcfcfc'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                  <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>{fb.user_name || 'Anonymous'}</div>
-                      <div style={{ fontSize: '0.9rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>{fb.message}</div>
-                  </td>
-                  <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '0.9rem' }}>
-                    {fb.created_at ? new Date(fb.created_at).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td style={{ padding: '16px 24px' }}>
-                    <span style={statusBadgeStyle(fb.status || 'Pending')}>
-                        {fb.status || 'Pending'}
-                    </span>
-                  </td>
+          /* TABLE WRAPPER FOR HORIZONTAL SCROLL ON MOBILE */
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                <thead style={{ backgroundColor: '#f8fafc' }}>
+                <tr>
+                    <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>User / Message</th>
+                    <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Date</th>
+                    <th style={{ padding: '16px 24px', fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                {recentFeedbacks.map((fb, index) => (
+                    <tr key={fb.id} style={{ borderBottom: index !== recentFeedbacks.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = '#fcfcfc'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '16px 24px' }}>
+                        <div style={{ fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>{fb.user_name || 'Anonymous'}</div>
+                        <div style={{ fontSize: '0.9rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>{fb.message}</div>
+                    </td>
+                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '0.9rem' }}>
+                        {fb.created_at ? new Date(fb.created_at).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '16px 24px' }}>
+                        <span style={statusBadgeStyle(fb.status || 'Pending')}>
+                            {fb.status || 'Pending'}
+                        </span>
+                    </td>
+                    </tr>
+                ))}
+                </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

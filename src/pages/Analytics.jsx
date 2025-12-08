@@ -1,5 +1,5 @@
 // CommuteWise - Analytics.jsx
-// Version: December 6, 2025 - 2.0 (Commuter-Centric Analytics)
+// Version: Production 2.1 (Responsive Layout)
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
@@ -15,6 +15,15 @@ const styles = `
   .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(209, 213, 219, 0.4); border-radius: 10px; }
   .analytics-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
   .bar-fill { transition: width 1s ease-in-out; }
+
+  /* Mobile Responsive Adjustments */
+  @media (max-width: 640px) {
+    .analytics-container { padding: 20px !important; }
+    .analytics-header h1 { fontSize: 1.5rem !important; }
+    .analytics-card { padding: 20px !important; }
+    /* Ensure charts stack on small screens */
+    .chart-grid { grid-template-columns: 1fr !important; } 
+  }
 `;
 
 const CONTAINER_STYLE = { padding: '40px', fontFamily: 'Inter, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#1e293b' };
@@ -98,18 +107,20 @@ const CategoryDonut = ({ data }) => {
     }).join(', ');
 
     return (
-        <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+        // Added flexWrap to handle mobile stacking
+        <div style={{ display: 'flex', gap: '30px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
             <div style={{ 
                 width: '140px', height: '140px', borderRadius: '50%', 
                 background: `conic-gradient(${gradient})`, 
-                position: 'relative' 
+                position: 'relative',
+                flexShrink: 0 
             }}>
                 <div style={{ position: 'absolute', inset: '25px', background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
                     <span style={{ fontWeight: '800', fontSize: '1.5rem', color: '#1e293b' }}>{total}</span>
                     <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>Reports</span>
                 </div>
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '200px' }}>
                 {data.map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem' }}>
                         <div style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: item.color }}></div>
@@ -220,7 +231,7 @@ export default function Analytics() {
 
     if (loading) {
         return (
-            <div style={{ ...CONTAINER_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+            <div className="analytics-container" style={{ ...CONTAINER_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
                 <Loader2 className="animate-spin" size={32} color="#3b82f6" />
                 <p style={{ marginTop: '10px', color: '#64748b' }}>Analyzing commuter data...</p>
             </div>
@@ -228,18 +239,18 @@ export default function Analytics() {
     }
 
     return (
-        <div style={CONTAINER_STYLE}>
+        <div className="analytics-container" style={CONTAINER_STYLE}>
             <style>{styles}</style>
 
             {/* HEADER */}
-            <div style={{ marginBottom: '30px' }}>
+            <div className="analytics-header" style={{ marginBottom: '30px' }}>
                 <h1 style={{ fontSize: '1.8rem', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <TrendingUp size={32} color="#4f46e5" /> Commuter Analytics
                 </h1>
                 <p style={{ color: '#64748b', margin: 0, paddingLeft: '44px' }}>Insights into user demand, search behavior, and feedback trends.</p>
             </div>
 
-            {/* ROW 1: KPI CARDS */}
+            {/* ROW 1: KPI CARDS (Responsive Grid) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', marginBottom: '30px' }}>
                 <KPICard 
                     title="Total Searches" 
@@ -264,8 +275,9 @@ export default function Analytics() {
                 />
             </div>
 
-            {/* ROW 2: CHARTS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px' }}>
+            {/* ROW 2: CHARTS (Responsive Grid) */}
+            {/* Changed minmax to 300px to allow side-by-side on desktop but full-width stacking on mobile */}
+            <div className="chart-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
                 
                 {/* 1. Most Searched Locations */}
                 <div className="analytics-card">

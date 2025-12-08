@@ -1,5 +1,5 @@
 // CommuteWise - AdminManagement.jsx
-// Version: Production 2.1 (Fixed Input Colors & Layout)
+// Version: Production 2.1 (Responsive Layout)
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
@@ -15,6 +15,13 @@ const styles = `
   .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(209, 213, 219, 0.4); border-radius: 10px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(156, 163, 175, 0.6); }
   @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  
+  /* Mobile Adjustments */
+  @media (max-width: 768px) {
+    .admin-container { padding: 20px !important; }
+    .admin-layout-row { flex-direction: column !important; }
+    .admin-col-left, .admin-col-right { width: 100% !important; min-width: 0 !important; }
+  }
 `;
 
 const CONTAINER_STYLE = { 
@@ -33,7 +40,6 @@ const CARD_STYLE = {
   overflow: 'hidden' 
 };
 
-// FIXED: Added Explicit Background Color
 const INPUT_STYLE = { 
   width: '100%', 
   padding: '10px 12px 10px 40px', 
@@ -41,8 +47,8 @@ const INPUT_STYLE = {
   border: '1px solid #d1d5db', 
   fontSize: '0.95rem', 
   outline: 'none', 
-  color: '#1e293b', // Dark Slate Text
-  backgroundColor: '#ffffff', // White Background
+  color: '#1e293b', 
+  backgroundColor: '#ffffff', 
   boxSizing: 'border-box' 
 };
 
@@ -59,7 +65,6 @@ export default function AdminManagement() {
   const [activeAdmins, setActiveAdmins] = useState([]); 
   const [loading, setLoading] = useState(true);
   
-  // Create Admin Form
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [createLoading, setCreateLoading] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -68,7 +73,6 @@ export default function AdminManagement() {
     fetchData();
   }, []);
 
-  // Auto-dismiss notification
   useEffect(() => { 
     if (notification) { 
         const timer = setTimeout(() => setNotification(null), 4000); 
@@ -83,7 +87,6 @@ export default function AdminManagement() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Logs (Real Data)
       const { data: logData, error } = await supabase
         .from('admin_logs')
         .select('*')
@@ -94,7 +97,6 @@ export default function AdminManagement() {
 
       setLogs(logData || []);
 
-      // Derive "Active Admins" from logs (Who has performed actions recently?)
       const uniqueAdmins = {};
       (logData || []).forEach(log => {
           if (!uniqueAdmins[log.admin_email]) {
@@ -131,7 +133,7 @@ export default function AdminManagement() {
       await logAction('Created Admin', `Invited/Created new admin account: ${formData.email}`);
       showNotification(`Invitation sent to ${formData.email}`, "success");
       setFormData({ email: '', password: '' });
-      fetchData(); // Refresh logs
+      fetchData(); 
     } catch (err) {
       showNotification(err.message, "error");
     } finally {
@@ -140,7 +142,7 @@ export default function AdminManagement() {
   };
 
   return (
-    <div style={CONTAINER_STYLE}>
+    <div className="admin-container" style={CONTAINER_STYLE}>
       <style>{styles}</style>
 
       {/* NOTIFICATION TOAST */}
@@ -163,10 +165,11 @@ export default function AdminManagement() {
         <p style={{ color: '#64748b', margin: 0, paddingLeft: '44px' }}>Manage system access and monitor security logs.</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '30px', flexDirection: 'row', flexWrap: 'wrap' }}>
+      {/* MAIN FLEX WRAPPER: Responsive Switch */}
+      <div className="admin-layout-row" style={{ display: 'flex', gap: '30px', flexDirection: 'row', flexWrap: 'wrap' }}>
         
         {/* LEFT COLUMN: Actions & Active Users */}
-        <div style={{ flex: '1', minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        <div className="admin-col-left" style={{ flex: '1 1 350px', display: 'flex', flexDirection: 'column', gap: '30px', minWidth: '350px' }}>
             
             {/* 1. Create Admin Card */}
             <div style={CARD_STYLE}>
@@ -198,7 +201,7 @@ export default function AdminManagement() {
                 </div>
             </div>
 
-            {/* 2. Recently Active Admins (Derived Real Data) */}
+            {/* 2. Recently Active Admins */}
             <div style={CARD_STYLE}>
                 <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -236,7 +239,7 @@ export default function AdminManagement() {
         </div>
 
         {/* RIGHT COLUMN: Audit Logs Table */}
-        <div style={{ flex: '2', minWidth: '400px' }}>
+        <div className="admin-col-right" style={{ flex: '2 1 400px', minWidth: '400px' }}>
             <div style={CARD_STYLE}>
                 <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -247,42 +250,45 @@ export default function AdminManagement() {
                     </button>
                 </div>
                 
-                <div className="custom-scrollbar" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                    {loading ? (
-                         <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-                            <Loader2 size={32} className="animate-spin" style={{margin:'0 auto 10px'}} />
-                            Loading audit logs...
-                         </div>
-                    ) : logs.length === 0 ? (
-                        <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No logs recorded yet.</div>
-                    ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead style={{ background: '#f8fafc', color: '#64748b', fontWeight: '600', position: 'sticky', top: 0 }}>
-                                <tr>
-                                    <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Action</th>
-                                    <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Details</th>
-                                    <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Admin</th>
-                                    <th style={{ padding: '12px 20px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Time</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {logs.map((log) => (
-                                    <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '16px 20px', fontWeight: '600', color: '#334155' }}>
-                                            <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#f1f5f9', fontSize: '0.8rem' }}>
-                                                {log.action}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '16px 20px', color: '#475569' }}>{log.details}</td>
-                                        <td style={{ padding: '16px 20px', color: '#64748b', fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.admin_email}</td>
-                                        <td style={{ padding: '16px 20px', color: '#94a3b8', textAlign: 'right', fontSize: '0.85rem' }}>
-                                            {new Date(log.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        </td>
+                {/* Horizontal Scroll Wrapper for Table */}
+                <div style={{ overflowX: 'auto' }}>
+                    <div className="custom-scrollbar" style={{ maxHeight: '600px', overflowY: 'auto', minWidth: '600px' }}>
+                        {loading ? (
+                            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                                <Loader2 size={32} className="animate-spin" style={{margin:'0 auto 10px'}} />
+                                Loading audit logs...
+                            </div>
+                        ) : logs.length === 0 ? (
+                            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No logs recorded yet.</div>
+                        ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <thead style={{ background: '#f8fafc', color: '#64748b', fontWeight: '600', position: 'sticky', top: 0 }}>
+                                    <tr>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Action</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Details</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Admin</th>
+                                        <th style={{ padding: '12px 20px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Time</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
+                                </thead>
+                                <tbody>
+                                    {logs.map((log) => (
+                                        <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '16px 20px', fontWeight: '600', color: '#334155' }}>
+                                                <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#f1f5f9', fontSize: '0.8rem' }}>
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '16px 20px', color: '#475569' }}>{log.details}</td>
+                                            <td style={{ padding: '16px 20px', color: '#64748b', fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.admin_email}</td>
+                                            <td style={{ padding: '16px 20px', color: '#94a3b8', textAlign: 'right', fontSize: '0.85rem' }}>
+                                                {new Date(log.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

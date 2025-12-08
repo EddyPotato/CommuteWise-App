@@ -1,5 +1,5 @@
 // CommuteWise - RouteManager.jsx
-// Version: Production 1.8 (Added Creation Warning & Removed Local Tracker)
+// Version: Production 1.9 (Responsive Mobile Map Warning)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
@@ -9,11 +9,10 @@ import {
   Trash2, Network, X, Search, Edit2, 
   ChevronDown, ChevronRight, Map as MapIcon, 
   List, LayoutGrid, Ticket, Plus, 
-  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Clock, Ruler, Info, Save, Ban
+  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Clock, Ruler, Info, Save, Ban, Monitor
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import KPICard from 'leaflet/dist/images/marker-icon.png'; // Note: Ensure this import path is correct for your setup
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -40,6 +39,45 @@ const styles = `
 
   @keyframes shrink { from { width: 100%; } to { width: 0%; } }
   @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* --- MOBILE RESPONSIVE STYLES --- */
+  @media (max-width: 768px) {
+    .route-manager-container { flex-direction: column !important; }
+    
+    /* Move Sidebar to Top */
+    .rm-sidebar { 
+        width: 100% !important; 
+        height: auto !important; 
+        max-height: 40vh; /* Limit height so map is visible */
+        border-right: none !important; 
+        border-bottom: 1px solid #e5e7eb; 
+    }
+
+    /* Content Area */
+    .rm-content { 
+        height: 60vh !important; /* Remaining height */
+        flex: 1 !important; 
+    }
+
+    /* Modal Responsive */
+    .rm-modal { width: 90% !important; margin: 20px; max-height: 85vh; }
+    
+    /* Map Warning Overlay */
+    .map-warning-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        text-align: center;
+        color: white;
+        backdrop-filter: blur(4px);
+    }
+  }
 `;
 
 // --- GLOBAL CONSTANTS ---
@@ -363,6 +401,10 @@ export default function RouteManager() {
   const [focusLocation, setFocusLocation] = useState(null); 
   const [inlineEditTarget, setInlineEditTarget] = useState(null);
 
+  // --- RESPONSIVE STATES ---
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showMapAnyway, setShowMapAnyway] = useState(false);
+
   const dragItem = useRef();
   const dragOverItem = useRef();
   const [pendingRouteData, setPendingRouteData] = useState(null);
@@ -374,8 +416,15 @@ export default function RouteManager() {
     eta: '15', fare: '15', discountedFare: '12', barangay: '', isFreeRide: false
   });
 
-  // General Fetching
-  useEffect(() => { fetchData(); }, []);
+  // General Fetching & Responsive Listeners
+  useEffect(() => { 
+      fetchData(); 
+      const handleResize = () => {
+          setIsMobile(window.innerWidth < 768);
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Notification Auto-Dismiss (Skip if sticky)
   useEffect(() => { 
@@ -400,14 +449,10 @@ export default function RouteManager() {
       const query = searchTerm.toLowerCase();
       const terminals = stops.filter(s => {
           if (s.type !== 'terminal') return false;
-          // Deep Search: Check Terminal Name OR Barangay OR Associated Routes
           const nameMatch = s.name?.toLowerCase().includes(query);
           const barangayMatch = s.barangay?.toLowerCase().includes(query);
-          
-          // Check if ANY route in this terminal matches the search
           const terminalRoutes = routes.filter(r => r.source === s.id || r.target === s.id);
           const routeMatch = terminalRoutes.some(r => r.route_name?.toLowerCase().includes(query));
-
           return query === '' || nameMatch || barangayMatch || routeMatch;
       });
       const grouped = {};
@@ -632,12 +677,12 @@ export default function RouteManager() {
   const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div className="route-manager-container" style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <style>{styles}</style>
       
       {/* NOTIFICATION */}
       {notification && (
-          <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 2000, backgroundColor: notification.type === 'error' ? '#fee2e2' : notification.type === 'warning' ? '#fffbeb' : '#dcfce7', border: `1px solid ${notification.type === 'error' ? '#ef4444' : notification.type === 'warning' ? '#f59e0b' : '#22c55e'}`, color: notification.type === 'error' ? '#b91c1c' : notification.type === 'warning' ? '#b45309' : '#15803d', padding: '16px 20px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '12px', animation: 'slideIn 0.3s ease-out', pointerEvents: 'auto', minWidth: '300px' }}>
+          <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, backgroundColor: notification.type === 'error' ? '#fee2e2' : notification.type === 'warning' ? '#fffbeb' : '#dcfce7', border: `1px solid ${notification.type === 'error' ? '#ef4444' : notification.type === 'warning' ? '#f59e0b' : '#22c55e'}`, color: notification.type === 'error' ? '#b91c1c' : notification.type === 'warning' ? '#b45309' : '#15803d', padding: '16px 20px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '12px', animation: 'slideIn 0.3s ease-out', pointerEvents: 'auto', minWidth: '300px' }}>
             {notification.type === 'error' ? <AlertCircle size={24}/> : notification.type === 'warning' ? <AlertTriangle size={24} /> : <CheckCircle size={24}/>} 
             <div style={{ flex: 1 }}>
                 <span style={{ fontWeight: 600, display: 'block', marginBottom: '2px' }}>{notification.type === 'error' ? 'Error' : notification.type === 'warning' ? 'Warning' : 'Success'}</span>
@@ -648,7 +693,7 @@ export default function RouteManager() {
       )}
 
       {confirmDialog && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 4000 }}>
               <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', color: deleteTimer !== null && deleteTimer > 0 ? '#f97316' : '#ef4444' }}>
                       <AlertTriangle size={24} /> <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Confirm Deletion</h3>
@@ -663,8 +708,8 @@ export default function RouteManager() {
           </div>
       )}
 
-      {/* SIDEBAR */}
-      <div style={{ width: '320px', background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', zIndex: 2 }}>
+      {/* SIDEBAR (Responsive) */}
+      <div className="rm-sidebar" style={{ width: '320px', background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', zIndex: 2 }}>
         <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827', margin: '0 0 20px 0' }}>Route Manager</h2>
           <div style={{ display: 'flex', backgroundColor: '#f3f4f6', padding: '4px', borderRadius: '8px' }}>
@@ -692,9 +737,23 @@ export default function RouteManager() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#f9fafb' }}>
+      <div className="rm-content" style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#f9fafb' }}>
           {activeView === 'map' && (
              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                
+                {/* MOBILE MAP WARNING OVERLAY */}
+                {isMobile && !showMapAnyway && (
+                    <div className="map-warning-overlay">
+                        <Monitor size={48} style={{ marginBottom: '20px', opacity: 0.8 }} />
+                        <h3 style={{ margin: '0 0 10px 0' }}>Desktop Recommended</h3>
+                        <p style={{ margin: '0 0 24px 0', maxWidth: '300px', lineHeight: '1.5' }}>Route editing on the map is complex and best experienced on a larger screen.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '250px' }}>
+                            <button onClick={() => setActiveView('terminals')} style={{ padding: '12px', background: 'white', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Switch to List View</button>
+                            <button onClick={() => setShowMapAnyway(true)} style={{ padding: '12px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', fontWeight: '500', cursor: 'pointer' }}>Continue to Map</button>
+                        </div>
+                    </div>
+                )}
+
                 <MapContainer center={[14.6, 121.0]} zoom={13} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <MapClicker />
@@ -711,7 +770,7 @@ export default function RouteManager() {
           )}
 
           {activeView === 'terminals' && (
-              <div className="custom-scrollbar" style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '40px', backgroundColor: '#f9fafb' }}>
+              <div className="custom-scrollbar" style={{ width: '100%', height: '100%', overflowY: 'auto', padding: isMobile ? '20px' : '40px', backgroundColor: '#f9fafb' }}>
                  <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                     <div style={{ backgroundColor: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '10px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'start' }}><Info size={20} color="#3b82f6" style={{ marginTop: '2px' }} /><div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#1e40af', fontWeight: 'bold' }}>Managing Routes</h4><p style={{ margin: 0, fontSize: '0.85rem', color: '#1e3a8a' }}>Use the "New Route" button to build new paths. You can drag and drop stops within the route cards to reorder them efficiently.</p></div></div>
                     <div style={{ marginBottom: '30px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><h2 style={{ fontSize: '1.5rem', color: '#111827', margin: 0 }}>Terminals & Routes</h2></div><div style={{ position: 'relative' }}><Search size={20} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 10 }} /><input type="text" placeholder="Search terminal name or barangay..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 42px', borderRadius: '12px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '1rem', color: '#1f2937', backgroundColor: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', boxSizing: 'border-box' }} /></div></div>
@@ -746,7 +805,7 @@ export default function RouteManager() {
 
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: (selectionMode !== null || mapInstruction) ? 'transparent' : 'rgba(0,0,0,0.6)', backdropFilter: (selectionMode !== null || mapInstruction) ? 'none' : 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, pointerEvents: (selectionMode !== null || mapInstruction) ? 'none' : 'auto', animation: 'modalFadeIn 0.2s ease-out' }}>
-          <div className="custom-scrollbar scrollbar-stable" style={{ display: (selectionMode !== null || mapInstruction) ? 'none' : 'block', backgroundColor: '#fff', padding: '30px', borderRadius: '16px', width: '500px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="rm-modal custom-scrollbar scrollbar-stable" style={{ display: (selectionMode !== null || mapInstruction) ? 'none' : 'block', backgroundColor: '#fff', padding: '30px', borderRadius: '16px', width: '500px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111827' }}>{modalMode === 'ADD_NODE' ? 'Location Details' : 'Route Builder'}</h3>
               <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><X size={24} /></button>
