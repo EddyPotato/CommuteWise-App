@@ -1,5 +1,5 @@
 // CommuteWise - RouteManager.jsx
-// Version: Production 1.9 (Responsive Mobile Map Warning)
+// Version: Production 2.5 (Simplified Route Builder Flow)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
@@ -19,6 +19,15 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 // --- ICONS CONFIG ---
 const StopIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41] });
 
+// --- CONSTANTS ---
+const SPEEDS_KMH = {
+    tricycle: 20,
+    jeep: 25,
+    bus: 30,
+    ebus: 30,
+    default: 20
+};
+
 // --- CSS STYLES ---
 const styles = `
   .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -37,96 +46,69 @@ const styles = `
     border-radius: 4px;
   }
 
+  .hidden-view { display: none !important; }
+  .visible-view { display: block !important; height: 100%; width: 100%; }
+
+  /* Modal Hiding Class - Keeps it mounted but invisible/unclickable */
+  .modal-hidden {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      z-index: -1;
+  }
+
   @keyframes shrink { from { width: 100%; } to { width: 0%; } }
   @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-  /* --- MOBILE RESPONSIVE STYLES --- */
   @media (max-width: 768px) {
     .route-manager-container { flex-direction: column !important; }
-    
-    /* Move Sidebar to Top */
-    .rm-sidebar { 
-        width: 100% !important; 
-        height: auto !important; 
-        max-height: 40vh; /* Limit height so map is visible */
-        border-right: none !important; 
-        border-bottom: 1px solid #e5e7eb; 
-    }
-
-    /* Content Area */
-    .rm-content { 
-        height: 60vh !important; /* Remaining height */
-        flex: 1 !important; 
-    }
-
-    /* Modal Responsive */
+    .rm-sidebar { width: 100% !important; height: auto !important; max-height: 40vh; border-right: none !important; border-bottom: 1px solid #e5e7eb; }
+    .rm-content { height: 60vh !important; flex: 1 !important; }
     .rm-modal { width: 90% !important; margin: 20px; max-height: 85vh; }
-    
-    /* Map Warning Overlay */
-    .map-warning-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0,0,0,0.85);
-        z-index: 2000;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 30px;
-        text-align: center;
-        color: white;
-        backdrop-filter: blur(4px);
-    }
+    .map-warning-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; color: white; backdrop-filter: blur(4px); }
   }
 `;
 
 // --- GLOBAL CONSTANTS ---
-const COMMON_INPUT_STYLE = {
-  width: '100%', padding: '10px 12px', marginBottom: '20px', borderRadius: '8px', 
-  border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box', 
-  color: '#111827', backgroundColor: '#ffffff', outline: 'none'
-};
+const COMMON_INPUT_STYLE = { width: '100%', padding: '10px 12px', marginBottom: '20px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box', color: '#111827', backgroundColor: '#ffffff', outline: 'none' };
+const LABEL_STYLE = { display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '0.9rem' };
 
-const LABEL_STYLE = {
-  display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '0.9rem'
-};
-
-// --- UTILS: HIGHLIGHTING ---
-const escapeRegExp = (string) => {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
-
+// --- UTILS ---
+const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const HighlightText = ({ text, highlight }) => {
     if (!highlight || !text) return <>{text}</>;
     const regex = new RegExp(`(${escapeRegExp(highlight)})`, 'gi');
     const parts = text.toString().split(regex);
-    return (
-        <>
-            {parts.map((part, i) => 
-                regex.test(part) ? (
-                    <span key={i} style={{ backgroundColor: '#fef08a', color: 'inherit', padding: 0, margin: 0 }}>{part}</span>
-                ) : ( part )
-            )}
-        </>
-    );
+    return <>{parts.map((part, i) => regex.test(part) ? <span key={i} style={{ backgroundColor: '#fef08a', color: 'inherit', padding: 0, margin: 0 }}>{part}</span> : part)}</>;
 };
 
-// --- HELPER: MAP CONTROLLER ---
+// Calculate ETA based on Distance (meters) and Transport Mode
+const calculateDynamicETA = (distanceMeters, mode) => {
+    if (!distanceMeters) return 15; // Default fallback
+    const speedKmh = SPEEDS_KMH[mode?.toLowerCase()] || SPEEDS_KMH.default;
+    const distanceKm = distanceMeters / 1000;
+    const timeHours = distanceKm / speedKmh;
+    const timeMinutes = Math.round(timeHours * 60);
+    return timeMinutes > 0 ? timeMinutes : 1; 
+};
+
+// --- HELPER COMPONENTS ---
 const MapController = ({ focusLocation }) => {
     const map = useMap();
-    useEffect(() => {
-        if (focusLocation) {
-            map.flyTo([focusLocation.lat, focusLocation.lng], 16, { duration: 1.5 });
-        }
-    }, [focusLocation, map]);
+    useEffect(() => { if (focusLocation) map.flyTo([focusLocation.lat, focusLocation.lng], 16, { duration: 1.5 }); }, [focusLocation, map]);
     return null;
 };
 
-// --- HELPER: GENERATE ICONS ---
+const MapResizer = ({ activeView }) => {
+    const map = useMap();
+    useEffect(() => { if (activeView === 'map') setTimeout(() => { map.invalidateSize(); }, 100); }, [activeView, map]);
+    return null;
+};
+
 const getIcon = (stop) => {
   const type = stop.type?.toLowerCase();
   const vehicles = stop.allowed_vehicles || [];
-  
   let color = '#3b82f6';
   let innerHTML = '';
   
@@ -137,6 +119,7 @@ const getIcon = (stop) => {
       else if (vehicles.includes('bus')) color = '#1e40af'; 
       else color = '#10b981'; 
   } else {
+      // Establishments removed from UI options but keeping fallback for existing data
       switch (type) {
         case 'school': color = '#f97316'; innerHTML = '🎓'; break;
         case 'hospital': color = '#ef4444'; innerHTML = '🏥'; break;
@@ -173,6 +156,7 @@ const getRouteColor = (mode) => {
   switch (mode?.toLowerCase()) {
     case 'bus': return '#2563eb';
     case 'jeep': return '#7c3aed';
+    case 'multi-mode': return '#eab308';
     default: return '#16a34a';
   }
 };
@@ -181,20 +165,16 @@ const getRouteColor = (mode) => {
 const SuggestionInput = ({ label, value, onChange, options, placeholder }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
-
   useEffect(() => {
     function handleClickOutside(event) { if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false); }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
-
   const filteredOptions = options.filter(opt => opt.toLowerCase().includes(value.toLowerCase()) && opt.toLowerCase() !== value.toLowerCase());
-
   return (
     <div style={{ marginBottom: '20px', position: 'relative' }} ref={wrapperRef}>
       <label style={LABEL_STYLE}>{label}</label>
-      <input type="text" value={value} onFocus={() => setIsOpen(true)} onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-        style={COMMON_INPUT_STYLE} placeholder={placeholder} />
+      <input type="text" value={value} onFocus={() => setIsOpen(true)} onChange={(e) => { onChange(e.target.value); setIsOpen(true); }} style={COMMON_INPUT_STYLE} placeholder={placeholder} />
       {isOpen && filteredOptions.length > 0 && (
         <div className="custom-scrollbar" style={{ position: 'absolute', top: 'calc(100% - 15px)', left: 0, width: '100%', maxHeight: '150px', overflowY: 'auto', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', zIndex: 50, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
           {filteredOptions.map((opt, index) => (
@@ -210,34 +190,24 @@ const SearchableSelect = ({ options, value, onChange, placeholder }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
-
-  useEffect(() => {
-    if (value) { const selected = options.find(o => o.id === parseInt(value)); if (selected) setQuery(selected.name); } else { setQuery(''); }
-  }, [value, options]);
-
+  useEffect(() => { if (value) { const selected = options.find(o => o.id === parseInt(value)); if (selected) setQuery(selected.name); } else { setQuery(''); } }, [value, options]);
   useEffect(() => {
     function handleClickOutside(event) { if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false); }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
-
   const filteredOptions = options.filter(opt => opt.name.toLowerCase().includes(query.toLowerCase()));
-
   return (
     <div style={{ position: 'relative', width: '100%' }} ref={wrapperRef}>
       <div style={{ position: 'relative', display: 'flex', gap: '8px' }}>
-        <input type="text" value={query} onFocus={() => setIsOpen(true)} placeholder={placeholder} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); onChange(''); }}
-            style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', outline: 'none', color: '#000', backgroundColor: '#fff', boxSizing: 'border-box' }} />
+        <input type="text" value={query} onFocus={() => setIsOpen(true)} placeholder={placeholder} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); onChange(''); }} style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', outline: 'none', color: '#000', backgroundColor: '#fff', boxSizing: 'border-box' }} />
         <Search size={18} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
         {value && <button onClick={() => { onChange(''); setQuery(''); }} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>}
       </div>
       {isOpen && (
         <div className="custom-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', zIndex: 50, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
           {filteredOptions.length > 0 ? filteredOptions.map(opt => (
-            <div key={opt.id} onClick={() => { onChange(opt.id); setIsOpen(false); }} style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', color: '#1f2937' }}>
-                <div style={{fontWeight: '500'}}>{opt.name}</div>
-                <div style={{fontSize: '0.75rem', color: '#6b7280'}}>{opt.type === 'terminal' ? 'Terminal' : 'Stop Point'} • {opt.barangay}</div>
-            </div>
+            <div key={opt.id} onClick={() => { onChange(opt.id); setIsOpen(false); }} style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', color: '#1f2937' }}><div style={{fontWeight: '500'}}>{opt.name}</div><div style={{fontSize: '0.75rem', color: '#6b7280'}}>{opt.type === 'terminal' ? 'Terminal' : 'Stop Point'} • {opt.barangay}</div></div>
           )) : <div style={{ padding: '10px', color: '#9ca3af' }}>No matches found</div>}
         </div>
       )}
@@ -249,7 +219,6 @@ const CollapsibleSection = ({ title, children, defaultOpen = false, level = 1, i
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const bg = level === 1 ? '#ffffff' : '#f9fafb';
     const border = '1px solid #e5e7eb';
-    
     return (
         <div style={{ border: border, borderRadius: '8px', marginBottom: level === 1 ? '20px' : '10px', backgroundColor: bg, overflow: 'hidden' }}>
             <div onClick={() => setIsOpen(!isOpen)} style={{ padding: level === 1 ? '16px' : '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: level === 1 ? 'bold' : '500', color: '#1f2937' }}>
@@ -261,8 +230,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = false, level = 1, i
     );
 };
 
-// --- INLINE ROUTE EDITOR ---
-const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTerm }) => {
+const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTerm, mapUpdate, onMapUpdateConsumed }) => {
     const [localStops, setLocalStops] = useState(route.waypoints || []);
     const [isModified, setIsModified] = useState(false);
     const dragItem = useRef();
@@ -270,56 +238,31 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTer
 
     useEffect(() => { setLocalStops(route.waypoints || []); setIsModified(false); }, [route]);
 
-    const handleStopChange = (index, value) => {
-        const newStops = [...localStops];
-        newStops[index] = value;
-        setLocalStops(newStops);
-        setIsModified(true);
-    };
+    useEffect(() => {
+        if (mapUpdate && mapUpdate.routeId === route.id) {
+            const newStops = [...localStops];
+            if (mapUpdate.index >= newStops.length) newStops.push(mapUpdate.stopId);
+            else newStops[mapUpdate.index] = mapUpdate.stopId;
+            setLocalStops(newStops);
+            setIsModified(true);
+            onMapUpdateConsumed(); 
+        }
+    }, [mapUpdate, localStops, route.id, onMapUpdateConsumed]);
 
-    const addStopSlot = () => {
-        const newStops = [...localStops];
-        if (newStops.length >= 2) newStops.splice(newStops.length - 1, 0, '');
-        else newStops.push('');
-        setLocalStops(newStops);
-        setIsModified(true);
-    };
-
-    const removeStopSlot = (index) => {
-        if (localStops.length <= 2) return;
-        const newStops = localStops.filter((_, i) => i !== index);
-        setLocalStops(newStops);
-        setIsModified(true);
-    };
-
+    const handleStopChange = (index, value) => { const newStops = [...localStops]; newStops[index] = value; setLocalStops(newStops); setIsModified(true); };
+    const addStopSlot = () => { const newStops = [...localStops]; if (newStops.length >= 2) newStops.splice(newStops.length - 1, 0, ''); else newStops.push(''); setLocalStops(newStops); setIsModified(true); };
+    const removeStopSlot = (index) => { if (localStops.length <= 2) return; const newStops = localStops.filter((_, i) => i !== index); setLocalStops(newStops); setIsModified(true); };
     const dragStart = (e, position) => { dragItem.current = position; e.dataTransfer.effectAllowed = "move"; };
     const dragEnter = (e, position) => { dragOverItem.current = position; e.preventDefault(); };
-    const drop = (e) => {
-        const copyListItems = [...localStops];
-        const dragItemContent = copyListItems[dragItem.current];
-        copyListItems.splice(dragItem.current, 1);
-        copyListItems.splice(dragOverItem.current, 0, dragItemContent);
-        dragItem.current = null;
-        dragOverItem.current = null;
-        setLocalStops(copyListItems);
-        setIsModified(true);
-    };
+    const drop = (e) => { const copyListItems = [...localStops]; const dragItemContent = copyListItems[dragItem.current]; copyListItems.splice(dragItem.current, 1); copyListItems.splice(dragOverItem.current, 0, dragItemContent); dragItem.current = null; dragOverItem.current = null; setLocalStops(copyListItems); setIsModified(true); };
 
     const handleSave = async () => {
         const validStops = localStops.filter(id => id !== '' && id !== null);
         if (validStops.length < 2) return alert("Route needs at least 2 stops.");
         
-        const { error } = await supabase.from('routes').update({ 
-            waypoints: validStops,
-            source: validStops[0],
-            target: validStops[validStops.length - 1]
-        }).eq('id', route.id);
-
+        const { error } = await supabase.from('routes').update({ waypoints: validStops, source: validStops[0], target: validStops[validStops.length - 1] }).eq('id', route.id);
         if (error) console.error("Error saving:", error);
-        else {
-            setIsModified(false);
-            onUpdate(); 
-        }
+        else { setIsModified(false); onUpdate(); }
     };
 
     return (
@@ -331,21 +274,16 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTer
                         <HighlightText text={route.route_name || 'Unnamed Route'} highlight={highlightTerm} />
                         {route.strict_stops && <span style={{ fontSize: '0.7rem', backgroundColor: '#fee2e2', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca' }}>STRICT</span>}
                     </div>
-                    <button onClick={() => onDelete(route.id, route.route_name)} style={{ padding: '4px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={18}/></button>
+                    <button onClick={() => onDelete('routes', route.id, route.route_name)} style={{ padding: '4px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={18}/></button>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <MapPin size={14}/> {route.source_stop?.name} <ChevronRight size={14}/> {route.target_stop?.name}
-                </div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14}/> {route.source_stop?.name} <ChevronRight size={14}/> {route.target_stop?.name}</div>
             </div>
-            
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '12px 16px', borderTop: '1px solid #e2e8f0', backgroundColor: 'white', fontSize: '0.85rem' }}>
                 <div style={{display:'flex', flexDirection:'column'}}><span style={{fontSize:'0.75rem', color:'#94a3b8'}}>ETA</span><span style={{fontWeight:'600', color:'#334155'}}><Clock size={12} style={{marginRight:'4px', verticalAlign:'middle'}}/>{route.eta_minutes}m</span></div>
                 <div style={{display:'flex', flexDirection:'column'}}><span style={{fontSize:'0.75rem', color:'#94a3b8'}}>Distance</span><span style={{fontWeight:'600', color:'#334155'}}><Ruler size={12} style={{marginRight:'4px', verticalAlign:'middle'}}/>{(route.distance_meters / 1000).toFixed(2)}km</span></div>
                 <div style={{display:'flex', flexDirection:'column'}}><span style={{fontSize:'0.75rem', color:'#94a3b8'}}>Fare</span><span style={{fontWeight:'600', color: route.fare === 0 ? '#16a34a' : '#334155'}}>{route.fare === 0 ? 'FREE' : `₱${route.fare}`}</span></div>
                 <div style={{display:'flex', flexDirection:'column'}}><span style={{fontSize:'0.75rem', color:'#94a3b8'}}>Discount</span><span style={{fontWeight:'600', color: route.discounted_fare === 0 ? '#16a34a' : '#334155'}}>{route.discounted_fare === 0 ? 'FREE' : `₱${route.discounted_fare}`}</span></div>
             </div>
-
-            {/* INLINE STOP EDITOR */}
             <div style={{ padding: '16px', borderTop: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <label style={{...LABEL_STYLE, marginBottom: 0}}>Route Stops</label>
@@ -357,14 +295,11 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTer
                         return (
                             <div key={index} draggable onDragStart={(e) => dragStart(e, index)} onDragEnter={(e) => dragEnter(e, index)} onDragEnd={drop} onDragOver={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'move' }}>
                                 <GripVertical size={20} style={{ color: '#9ca3af' }} />
-                                <div style={{ width: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    {isFirst ? <div style={{width: 12, height: 12, borderRadius: '50%', background: '#16a34a'}}></div> : isLast ? <MapPin size={18} color="#ef4444" /> : <div style={{width: 10, height: 10, borderRadius: '50%', background: '#9ca3af'}}></div>}
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <SearchableSelect placeholder={`Select ${isFirst ? 'Origin' : isLast ? 'Destination' : 'Waypoint'}...`} options={stops} value={stopId} onChange={(id) => handleStopChange(index, id)} />
-                                </div>
+                                <div style={{ width: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>{isFirst ? <div style={{width: 12, height: 12, borderRadius: '50%', background: '#16a34a'}}></div> : isLast ? <MapPin size={18} color="#ef4444" /> : <div style={{width: 10, height: 10, borderRadius: '50%', background: '#9ca3af'}}></div>}</div>
+                                <div style={{ flex: 1 }}><SearchableSelect placeholder={`Select ${isFirst ? 'Origin' : isLast ? 'Destination' : 'Waypoint'}...`} options={stops} value={stopId} onChange={(id) => handleRouteStopChange(index, id)} /></div>
                                 <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                                    <button onClick={() => onMapSelect(route.id, index)} style={{ background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
+                                    {/* CAPSLOCK: REMOVED GREEN PLUS BUTTON, KEPT ONLY SELECT FROM MAP */}
+                                    <button onClick={() => onMapSelect(route.id, index)} title="Select from Map" style={{ background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
                                     {!isFirst && !isLast && <button onClick={() => removeStopSlot(index)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}><Trash2 size={18} /></button>}
                                 </div>
                             </div>
@@ -400,8 +335,9 @@ export default function RouteManager() {
   const [deleteTimer, setDeleteTimer] = useState(null);
   const [focusLocation, setFocusLocation] = useState(null); 
   const [inlineEditTarget, setInlineEditTarget] = useState(null);
+  const [mapUpdatePayload, setMapUpdatePayload] = useState(null); 
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false); 
 
-  // --- RESPONSIVE STATES ---
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showMapAnyway, setShowMapAnyway] = useState(false);
 
@@ -416,17 +352,13 @@ export default function RouteManager() {
     eta: '15', fare: '15', discountedFare: '12', barangay: '', isFreeRide: false
   });
 
-  // General Fetching & Responsive Listeners
   useEffect(() => { 
       fetchData(); 
-      const handleResize = () => {
-          setIsMobile(window.innerWidth < 768);
-      };
+      const handleResize = () => { setIsMobile(window.innerWidth < 768); };
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Notification Auto-Dismiss (Skip if sticky)
   useEffect(() => { 
       if (notification && !notification.sticky) { 
           const timer = setTimeout(() => setNotification(null), 3000); 
@@ -451,7 +383,7 @@ export default function RouteManager() {
           if (s.type !== 'terminal') return false;
           const nameMatch = s.name?.toLowerCase().includes(query);
           const barangayMatch = s.barangay?.toLowerCase().includes(query);
-          const terminalRoutes = routes.filter(r => r.source === s.id || r.target === s.id);
+          const terminalRoutes = routes.filter(r => r.source === s.id);
           const routeMatch = terminalRoutes.some(r => r.route_name?.toLowerCase().includes(query));
           return query === '' || nameMatch || barangayMatch || routeMatch;
       });
@@ -460,23 +392,34 @@ export default function RouteManager() {
       return grouped;
   };
 
-  const getRoutesForTerminal = (terminalId) => {
-      return routes.filter(r => r.source === terminalId || r.target === terminalId || (r.waypoints && r.waypoints.includes(terminalId)));
-  };
+  const getRoutesForTerminal = (terminalId) => { return routes.filter(r => r.source === terminalId); };
+  const getUniqueBarangays = () => { const existing = stops.map(s => s.barangay).filter(b => b && b !== 'Unassigned'); return ['Unassigned', ...[...new Set(existing)].sort()]; };
 
-  const getUniqueBarangays = () => {
-      const existing = stops.map(s => s.barangay).filter(b => b && b !== 'Unassigned');
-      return ['Unassigned', ...[...new Set(existing)].sort()];
-  };
-
-  // --- MAP INTERACTION ---
   const MapClicker = () => {
     useMapEvents({
       click: (e) => {
         if (!isModalOpen) {
-          setTempPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
-          if (mapInstruction) setMapInstruction(null);
-          openModal('ADD_NODE');
+          // CAPSLOCK: IF SELECTING A SLOT, PRESERVE ROUTE BUILDER STATE BEFORE OPENING ADD_NODE
+          if (isSelectingLocation && selectionMode !== null) {
+              setPendingRouteData({ ...formData, _preservedId: editingId });
+              setPendingSlotIndex(selectionMode);
+              
+              setTempPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+              if (mapInstruction) setMapInstruction(null);
+              
+              // Force switch to ADD_NODE mode
+              setModalMode('ADD_NODE');
+              setFormData({ 
+                  name: '', type: 'stop_point', barangay: 'Unassigned',
+                  vehicles: { tricycle: true, jeep: false, bus: false, ebus: false },
+                  routeName: '', transportMode: 'tricycle', routeStops: [], eta: '15', fare: '15', discountedFare: '12', isFreeRide: false, isStrictStops: false
+              });
+              setIsSelectingLocation(false);
+          } else if (!isModalOpen) {
+              setTempPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+              if (mapInstruction) setMapInstruction(null);
+              openModal('ADD_NODE');
+          }
         }
       }
     });
@@ -507,15 +450,18 @@ export default function RouteManager() {
       if (data) {
         let stopsToLoad = data.waypoints; 
         if (!stopsToLoad || stopsToLoad.length === 0) stopsToLoad = [data.source, data.target];
-        const isFree = parseFloat(data.fare) === 0 && data.mode === 'bus';
+        const isFree = parseFloat(data.fare) === 0;
         setFormData({ 
             routeName: data.route_name, transportMode: data.mode, routeStops: stopsToLoad, 
             eta: data.eta_minutes || '', fare: data.fare || '', discountedFare: data.discounted_fare || '',
             name: '', type: 'stop_point', barangay: '', vehicles: { tricycle: false, jeep: false, bus: false, ebus: false }, isFreeRide: isFree, isStrictStops: data.strict_stops || false
         });
       } else {
-        if (pendingRouteData) { const { _preservedId, ...rest } = pendingRouteData; setFormData(rest); if (_preservedId) targetId = _preservedId; setPendingRouteData(null); setPendingSlotIndex(null); } 
-        else { 
+        if (pendingRouteData) { 
+            const { _preservedId, ...rest } = pendingRouteData; 
+            setFormData(rest); 
+            if (_preservedId) targetId = _preservedId; 
+        } else { 
             const initialStops = prefillTerminal ? [prefillTerminal.id, ''] : ['', ''];
             setFormData({ routeName: '', transportMode: 'tricycle', routeStops: initialStops, eta: '15', fare: '15', discountedFare: '12', name: '', type: 'stop_point', barangay: '', vehicles: { tricycle: false, jeep: false, bus: false, ebus: false }, isFreeRide: false, isStrictStops: false }); 
         }
@@ -523,16 +469,11 @@ export default function RouteManager() {
     }
     setEditingId(targetId);
     setIsModalOpen(true);
+    setIsSelectingLocation(false);
   };
 
   const handleCreateStopFromRoute = (targetIndex) => {
-      setPendingRouteData({ ...formData, _preservedId: editingId });
-      setPendingSlotIndex(targetIndex);
-      setSelectionMode(null);
-      setIsModalOpen(false);
-      if (activeView !== 'map') setPreviousView(activeView);
-      setActiveView('map'); 
-      setMapInstruction("Click on the map to place the new Stop Point");
+      // Logic handled via map selection flow
   };
 
   const handleNodeSaved = (newNodeId) => {
@@ -540,20 +481,25 @@ export default function RouteManager() {
           if (pendingSlotIndex !== null && newNodeId) {
              const newStops = [...pendingRouteData.routeStops];
              newStops[pendingSlotIndex] = newNodeId;
-             pendingRouteData.routeStops = newStops;
+             pendingRouteData.routeStops = newStops; 
           }
-          openModal('ADD_ROUTE');
+          // Restore the Route Builder
+          setModalMode('ADD_ROUTE');
+          setEditingId(pendingRouteData._preservedId);
+          setFormData(prev => ({...pendingRouteData})); 
+          setPendingRouteData(null);
+          setPendingSlotIndex(null);
+          setIsSelectingLocation(false);
+          setIsModalOpen(true);
       }
   };
 
   const handleCancelInstruction = () => {
       setMapInstruction(null); 
-      const wasSelecting = selectionMode !== null;
-      setSelectionMode(null); setPendingSlotIndex(null); setInlineEditTarget(null);
-
-      if (pendingRouteData || wasSelecting) { openModal('ADD_ROUTE'); } 
-      else if (editingId && !pendingRouteData) { const originalStop = stops.find(s => s.id === editingId); if (originalStop) openModal('ADD_NODE', originalStop); } 
-      else { if (previousView) { setActiveView(previousView); setPreviousView(null); } }
+      setSelectionMode(null); 
+      setInlineEditTarget(null);
+      setIsSelectingLocation(false); 
+      if (previousView) { setActiveView(previousView); setPreviousView(null); }
   };
 
   const handleFareChange = (e) => {
@@ -565,41 +511,27 @@ export default function RouteManager() {
       });
   };
 
-  const toggleFreeRide = () => {
-    setFormData(prev => {
-        const isNowFree = !prev.isFreeRide;
-        return { ...prev, isFreeRide: isNowFree, fare: isNowFree ? 0 : (prev.fare || '15'), discountedFare: isNowFree ? 0 : (prev.discountedFare || '12'), transportMode: isNowFree ? 'bus' : prev.transportMode };
-    });
-  };
-
-  const toggleStrictStops = () => {
-      setFormData(prev => ({ ...prev, isStrictStops: !prev.isStrictStops }));
-  };
-
+  const toggleFreeRide = () => { setFormData(prev => { const isNowFree = !prev.isFreeRide; return { ...prev, isFreeRide: isNowFree, fare: isNowFree ? 0 : (prev.fare || '15'), discountedFare: isNowFree ? 0 : (prev.discountedFare || '12') }; }); };
+  const toggleStrictStops = () => { setFormData(prev => ({ ...prev, isStrictStops: !prev.isStrictStops })); };
   const handleRouteStopChange = (index, value) => { const newStops = [...formData.routeStops]; newStops[index] = value; setFormData({ ...formData, routeStops: newStops }); };
   const addRouteStopSlot = () => { const newStops = [...formData.routeStops]; if (newStops.length >= 2) { newStops.splice(newStops.length - 1, 0, ''); } else { newStops.push(''); } setFormData({ ...formData, routeStops: newStops }); };
   const removeRouteStopSlot = (index) => { if (formData.routeStops.length <= 2) return; const newStops = formData.routeStops.filter((_, i) => i !== index); setFormData({ ...formData, routeStops: newStops }); };
-
   const dragStart = (e, position) => { dragItem.current = position; e.dataTransfer.effectAllowed = "move"; };
   const dragEnter = (e, position) => { dragOverItem.current = position; e.preventDefault(); };
   const drop = (e) => { const copyListItems = [...formData.routeStops]; const dragItemContent = copyListItems[dragItem.current]; copyListItems.splice(dragItem.current, 1); copyListItems.splice(dragOverItem.current, 0, dragItemContent); dragItem.current = null; dragOverItem.current = null; setFormData({ ...formData, routeStops: copyListItems }); };
 
   const handlePinClick = (stop) => { 
-      if (selectionMode !== null && !inlineEditTarget) { handleRouteStopChange(selectionMode, stop.id); setSelectionMode(null); setMapInstruction(null); openModal('ADD_ROUTE'); }
-      else if (inlineEditTarget) {
+      if (selectionMode !== null && !inlineEditTarget) { 
+          handleRouteStopChange(selectionMode, stop.id); setSelectionMode(null); setMapInstruction(null); openModal('ADD_ROUTE'); 
+      } else if (inlineEditTarget) {
           const { routeId, stopIndex } = inlineEditTarget;
-          const targetRoute = routes.find(r => r.id === routeId);
-          if (targetRoute) {
-              const newWaypoints = [...(targetRoute.waypoints || [])];
-              newWaypoints[stopIndex] = stop.id;
-              supabase.from('routes').update({ waypoints: newWaypoints, source: newWaypoints[0], target: newWaypoints[newWaypoints.length - 1] }).eq('id', routeId).then(() => {
-                  fetchData(); setInlineEditTarget(null); setActiveView('terminals'); setMapInstruction(null);
-              });
-          }
+          setMapUpdatePayload({ routeId, index: stopIndex, stopId: stop.id });
+          setInlineEditTarget(null); setMapInstruction(null);
+          if (previousView) { setActiveView(previousView); setPreviousView(null); }
       }
   };
   
-  const initiateSelectionMode = (index) => { setSelectionMode(index); if (activeView !== 'map') setPreviousView(activeView); setActiveView('map'); setIsModalOpen(false); setMapInstruction(`Select Stop #${index + 1} from map`); };
+  const initiateSelectionMode = (index) => { setSelectionMode(index); setMapInstruction(`Select Stop #${index + 1} from map`); setIsSelectingLocation(true); };
   const handleInlineMapSelect = (routeId, stopIndex) => { setInlineEditTarget({ routeId, stopIndex }); setPreviousView('terminals'); setActiveView('map'); setMapInstruction("Select a stop from the map for this route."); };
 
   const saveNode = async () => {
@@ -618,7 +550,18 @@ export default function RouteManager() {
     }
 
     if (error) { showNotification(error.message, "error"); } 
-    else { await logAction(editingId ? 'Updated Node' : 'Created Node', `Name: ${formData.name}`); showNotification("Location saved!", "success"); closeModal(); await fetchData(); handleNodeSaved(savedId); }
+    else { 
+        await logAction(editingId ? 'Updated Node' : 'Created Node', `Name: ${formData.name}`); 
+        showNotification("Location saved!", "success"); 
+        await fetchData(); 
+        
+        // CAPSLOCK: IF WE WERE CREATING A STOP FOR A ROUTE, RETURN TO ROUTE BUILDER
+        if (pendingRouteData) {
+            handleNodeSaved(savedId);
+        } else {
+            closeModal();
+        }
+    }
   };
 
   const saveRoute = async () => {
@@ -635,11 +578,19 @@ export default function RouteManager() {
       const startName = stops.find(s => s.id === parseInt(startId))?.name;
       const endName = stops.find(s => s.id === parseInt(endId))?.name;
 
+      const finalFare = (formData.fare !== '' && formData.fare !== null && !isNaN(formData.fare)) ? parseFloat(formData.fare) : 15;
+      const finalDiscount = (formData.discountedFare !== '' && formData.discountedFare !== null && !isNaN(formData.discountedFare)) ? parseFloat(formData.discountedFare) : 12;
+
+      // CALCULATE DYNAMIC ETA
+      const dynamicETA = calculateDynamicETA(route ? route.distance : 0, formData.transportMode);
+
       const payload = {
         route_name: formData.routeName || `${startName} - ${endName}`, source: startId, target: endId, mode: formData.transportMode,
         polyline: route ? JSON.stringify(route.geometry) : null, distance_meters: route ? route.distance : 0, cost: route ? route.duration : 0,
-        eta_minutes: formData.eta ? parseInt(formData.eta) : 15, fare: formData.fare ? parseFloat(formData.fare) : 15,
-        discounted_fare: formData.discountedFare ? parseFloat(formData.discountedFare) : 12, waypoints: validStops, strict_stops: formData.isStrictStops
+        eta_minutes: dynamicETA, 
+        fare: formData.isFreeRide ? 0 : finalFare,
+        discounted_fare: formData.isFreeRide ? 0 : finalDiscount, 
+        waypoints: validStops, strict_stops: formData.isStrictStops
       };
 
       let error;
@@ -674,7 +625,7 @@ export default function RouteManager() {
     if (deleteTimer > 0) { const timeout = setTimeout(() => { setDeleteTimer(prev => prev - 1); }, 1000); return () => clearTimeout(timeout); }
   }, [deleteTimer]);
 
-  const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
+  const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setDeleteTimer(null); setInlineEditTarget(null); setIsSelectingLocation(false); setPendingRouteData(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
 
   return (
     <div className="route-manager-container" style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
@@ -736,17 +687,15 @@ export default function RouteManager() {
         ) : ( <div style={{ padding: '24px', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}><LayoutGrid size={48} style={{ marginBottom: '10px', opacity: 0.2 }} /><p>Manage Terminal hierarchies here.</p></div> )}
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT AREA */}
       <div className="rm-content" style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#f9fafb' }}>
-          {activeView === 'map' && (
-             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                
-                {/* MOBILE MAP WARNING OVERLAY */}
-                {isMobile && !showMapAnyway && (
+          
+          {/* MAP CONTAINER */}
+          <div className={activeView === 'map' ? 'visible-view' : 'hidden-view'} style={{ position: 'relative' }}>
+                {isMobile && !showMapAnyway && activeView === 'map' && (
                     <div className="map-warning-overlay">
                         <Monitor size={48} style={{ marginBottom: '20px', opacity: 0.8 }} />
                         <h3 style={{ margin: '0 0 10px 0' }}>Desktop Recommended</h3>
-                        <p style={{ margin: '0 0 24px 0', maxWidth: '300px', lineHeight: '1.5' }}>Route editing on the map is complex and best experienced on a larger screen.</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '250px' }}>
                             <button onClick={() => setActiveView('terminals')} style={{ padding: '12px', background: 'white', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Switch to List View</button>
                             <button onClick={() => setShowMapAnyway(true)} style={{ padding: '12px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', fontWeight: '500', cursor: 'pointer' }}>Continue to Map</button>
@@ -756,21 +705,22 @@ export default function RouteManager() {
 
                 <MapContainer center={[14.6, 121.0]} zoom={13} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                    <MapResizer activeView={activeView} />
                     <MapClicker />
                     <MapController focusLocation={focusLocation} />
                     {routes.map(r => r.parsedPolyline && <GeoJSON key={`route-${r.id}-${hoveredRouteId === r.id ? 'focused' : 'dimmed'}`} data={r.parsedPolyline} style={() => ({ color: getRouteColor(r.mode), weight: hoveredRouteId === r.id ? 8 : 5, opacity: hoveredRouteId ? (hoveredRouteId === r.id ? 1 : 0.1) : 0.8 })} />)}
                     {stops.map(s => (
                         <Marker key={s.id} position={[s.lat, s.lng]} icon={getIcon(s)} eventHandlers={{ click: () => handlePinClick(s) }}>
-                        {selectionMode === null && <Popup><strong>{s.name}</strong><br/><span style={{fontSize:'0.8rem', color: '#666', textTransform:'capitalize'}}>{s.type.replace('_', ' ')}</span><div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}><button onClick={() => openModal('ADD_NODE', s)} style={{ flex:1, color: 'white', background: '#3b82f6', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Edit</button><button onClick={() => deleteItemWithConfirmation('stops', s.id, s.name)} style={{ flex:1, color: 'white', background: '#ef4444', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Delete</button></div></Popup>}
+                        {selectionMode === null && !inlineEditTarget && <Popup><strong>{s.name}</strong><br/><span style={{fontSize:'0.8rem', color: '#666', textTransform:'capitalize'}}>{s.type.replace('_', ' ')}</span><div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}><button onClick={() => openModal('ADD_NODE', s)} style={{ flex:1, color: 'white', background: '#3b82f6', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Edit</button><button onClick={() => deleteItemWithConfirmation('stops', s.id, s.name)} style={{ flex:1, color: 'white', background: '#ef4444', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Delete</button></div></Popup>}
                         </Marker>
                     ))}
                 </MapContainer>
-                {mapInstruction && <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', padding: '8px 12px 8px 16px', borderRadius: '50px', fontWeight: '500', boxShadow: '0 4px 15px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '16px', backdropFilter: 'blur(4px)' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MousePointer2 size={16} color="#3b82f6" /> {mapInstruction}</span><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><button onClick={handleCancelInstruction} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '20px', color: 'white', cursor: 'pointer', padding: '6px 12px', fontSize: '0.85rem', fontWeight: '600' }}>Cancel</button>{selectionMode !== null && <button onClick={() => handleCreateStopFromRoute(selectionMode)} style={{ background: '#10b981', border: 'none', borderRadius: '20px', color: 'white', cursor: 'pointer', padding: '6px 14px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}><PlusCircle size={14} /> Create Stop</button>}</div></div>}
-             </div>
-          )}
+                
+                {mapInstruction && <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', padding: '8px 12px 8px 16px', borderRadius: '50px', fontWeight: '500', boxShadow: '0 4px 15px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '16px', backdropFilter: 'blur(4px)' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MousePointer2 size={16} color="#3b82f6" /> {mapInstruction}</span><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><button onClick={handleCancelInstruction} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '20px', color: 'white', cursor: 'pointer', padding: '6px 12px', fontSize: '0.85rem', fontWeight: '600' }}>Cancel</button></div></div>}
+          </div>
 
-          {activeView === 'terminals' && (
-              <div className="custom-scrollbar" style={{ width: '100%', height: '100%', overflowY: 'auto', padding: isMobile ? '20px' : '40px', backgroundColor: '#f9fafb' }}>
+          {/* LIST VIEW CONTAINER */}
+          <div className={`${activeView === 'terminals' ? 'visible-view' : 'hidden-view'} custom-scrollbar`} style={{ overflowY: 'auto', padding: isMobile ? '20px' : '40px', backgroundColor: '#f9fafb' }}>
                  <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                     <div style={{ backgroundColor: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '10px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'start' }}><Info size={20} color="#3b82f6" style={{ marginTop: '2px' }} /><div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#1e40af', fontWeight: 'bold' }}>Managing Routes</h4><p style={{ margin: 0, fontSize: '0.85rem', color: '#1e3a8a' }}>Use the "New Route" button to build new paths. You can drag and drop stops within the route cards to reorder them efficiently.</p></div></div>
                     <div style={{ marginBottom: '30px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><h2 style={{ fontSize: '1.5rem', color: '#111827', margin: 0 }}>Terminals & Routes</h2></div><div style={{ position: 'relative' }}><Search size={20} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 10 }} /><input type="text" placeholder="Search terminal name or barangay..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 42px', borderRadius: '12px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '1rem', color: '#1f2937', backgroundColor: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', boxSizing: 'border-box' }} /></div></div>
@@ -789,7 +739,19 @@ export default function RouteManager() {
                                                 </div>
                                                 <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Routes ({routesInTerminal.length})</h4>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                                    {routesInTerminal.length > 0 ? routesInTerminal.map(r => <RouteCard key={r.id} route={r} stops={stops} onDelete={deleteItemWithConfirmation} onMapSelect={handleInlineMapSelect} onUpdate={handleRouteUpdate} highlightTerm={searchTerm} />) : <div style={{ fontStyle: 'italic', color: '#9ca3af', padding: '10px' }}>No routes configured.</div>}
+                                                    {routesInTerminal.length > 0 ? routesInTerminal.map(r => 
+                                                        <RouteCard 
+                                                            key={r.id} 
+                                                            route={r} 
+                                                            stops={stops} 
+                                                            onDelete={(id, name) => deleteItemWithConfirmation('routes', id, name)} 
+                                                            onMapSelect={handleInlineMapSelect} 
+                                                            onUpdate={handleRouteUpdate} 
+                                                            highlightTerm={searchTerm}
+                                                            mapUpdate={mapUpdatePayload}
+                                                            onMapUpdateConsumed={() => setMapUpdatePayload(null)}
+                                                        />
+                                                    ) : <div style={{ fontStyle: 'italic', color: '#9ca3af', padding: '10px' }}>No routes starting from this terminal.</div>}
                                                 </div>
                                             </div>
                                         );
@@ -799,13 +761,12 @@ export default function RouteManager() {
                         ))
                     ) : ( <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #e5e7eb' }}><Search size={48} style={{ opacity: 0.2, marginBottom: '16px' }} /><h3 style={{ margin: '0 0 8px 0', color: '#374151' }}>No matches found</h3><p style={{ margin: 0, fontSize: '0.9rem' }}>We couldn't find any terminals matching "{searchTerm}"</p></div> )}
                  </div>
-              </div>
-          )}
+          </div>
       </div>
 
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: (selectionMode !== null || mapInstruction) ? 'transparent' : 'rgba(0,0,0,0.6)', backdropFilter: (selectionMode !== null || mapInstruction) ? 'none' : 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, pointerEvents: (selectionMode !== null || mapInstruction) ? 'none' : 'auto', animation: 'modalFadeIn 0.2s ease-out' }}>
-          <div className="rm-modal custom-scrollbar scrollbar-stable" style={{ display: (selectionMode !== null || mapInstruction) ? 'none' : 'block', backgroundColor: '#fff', padding: '30px', borderRadius: '16px', width: '500px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className={(isSelectingLocation || mapInstruction) ? 'modal-hidden' : ''} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: (isSelectingLocation || mapInstruction) ? 'transparent' : 'rgba(0,0,0,0.6)', backdropFilter: (isSelectingLocation || mapInstruction) ? 'none' : 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, pointerEvents: (isSelectingLocation || mapInstruction) ? 'none' : 'auto', animation: 'modalFadeIn 0.2s ease-out' }}>
+          <div className="rm-modal custom-scrollbar scrollbar-stable" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', width: '500px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111827' }}>{modalMode === 'ADD_NODE' ? 'Location Details' : 'Route Builder'}</h3>
               <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><X size={24} /></button>
@@ -814,7 +775,7 @@ export default function RouteManager() {
                 <>
                     <label style={LABEL_STYLE}>Location Name</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={COMMON_INPUT_STYLE} placeholder="e.g. Central Market" />
                     <SuggestionInput label="Barangay" value={formData.barangay} onChange={(val) => setFormData({...formData, barangay: val})} options={getUniqueBarangays()} placeholder="e.g. Pasong Tamo" />
-                    <label style={LABEL_STYLE}>Location Type</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ ...COMMON_INPUT_STYLE, cursor: 'pointer' }}><option value="stop_point">Stop Point</option><option value="terminal">Terminal</option><option disabled>── Establishments ──</option><option value="school">School / University</option><option value="hospital">Hospital / Clinic</option><option value="mall">Mall / Market</option><option value="restaurant">Restaurant / Food</option></select>
+                    <label style={LABEL_STYLE}>Location Type</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ ...COMMON_INPUT_STYLE, cursor: 'pointer' }}><option value="stop_point">Stop Point</option><option value="terminal">Terminal</option></select>
                     {formData.type === 'terminal' && (
                         <div style={{ backgroundColor: '#f3f4f6', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
                             <label style={{...LABEL_STYLE, marginBottom: '12px'}}>Terminal Vehicles</label>
@@ -825,8 +786,6 @@ export default function RouteManager() {
                             </div>
                         </div>
                     )}
-
-                    {/* NEW WARNING BLOCK */}
                     <div style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '8px', padding: '12px', marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                         <AlertTriangle size={20} color="#ea580c" style={{ marginTop: '2px', flexShrink: 0 }} />
                         <div>
@@ -834,7 +793,6 @@ export default function RouteManager() {
                              <div style={{ fontSize: '0.8rem', color: '#c2410c', lineHeight: '1.4' }}>Once created, this stop point or terminal <strong>cannot be moved</strong>. Only the name and details can be edited later.</div>
                         </div>
                     </div>
-
                     <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                         <button onClick={closeModal} style={{ flex: 1, padding: '12px', background: '#f9fafb', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                         <button onClick={saveNode} style={{ flex: 1, padding: '12px', background: '#10b981', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>{editingId ? 'Update' : 'Save Location'}</button>
@@ -864,8 +822,7 @@ export default function RouteManager() {
                                             <div style={{ width: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>{isFirst ? <div style={{width: 12, height: 12, borderRadius: '50%', background: '#16a34a'}}></div> : isLast ? <MapPin size={18} color="#ef4444" /> : <div style={{width: 10, height: 10, borderRadius: '50%', background: '#9ca3af'}}></div>}</div>
                                             <div style={{ flex: 1 }}><SearchableSelect placeholder={`Select ${isFirst ? 'Origin' : isLast ? 'Destination' : 'Waypoint'}...`} options={stops} value={stopId} onChange={(id) => handleRouteStopChange(index, id)} /></div>
                                             <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                                                <button onClick={() => handleCreateStopFromRoute(index)} style={{ background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><Plus size={16} /></button>
-                                                <button onClick={() => initiateSelectionMode(index)} style={{ background: selectionMode === index ? '#3b82f6' : '#f3f4f6', color: selectionMode === index ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
+                                                <button onClick={() => initiateSelectionMode(index)} title="Select from Map" style={{ background: selectionMode === index ? '#3b82f6' : '#f3f4f6', color: selectionMode === index ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
                                                 {!isFirst && !isLast && <button onClick={() => removeRouteStopSlot(index)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}><Trash2 size={18} /></button>}
                                                 {(isFirst || isLast) && <div style={{width: 34}}></div>}
                                             </div>
