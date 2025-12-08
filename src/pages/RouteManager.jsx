@@ -1,5 +1,5 @@
 // CommuteWise - RouteManager.jsx
-// Version: December 6, 2025 - 17.0 (FIXED: Seamless Search Highlighting)
+// Version: December 6, 2025 - 17.1 (Simplified: Removed Move Pin Functionality)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
@@ -9,7 +9,7 @@ import {
   Trash2, Network, X, Search, Edit2, 
   ChevronDown, ChevronRight, Map as MapIcon, 
   List, LayoutGrid, Ticket, Plus, 
-  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Crosshair, Clock, Ruler, Info, Save, Ban, LogOut
+  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Clock, Ruler, Info, Save, Ban, LogOut
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -26,7 +26,7 @@ const styles = `
   .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(209, 213, 219, 0.4); border-radius: 10px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(156, 163, 175, 0.6); }
   .scrollbar-stable { scrollbar-gutter: stable; }
-  
+   
   /* Force Checkbox Visibility & Light Mode */
   input[type="checkbox"] { 
     accent-color: #3b82f6; 
@@ -385,8 +385,6 @@ export default function RouteManager() {
   const dragOverItem = useRef();
   const [pendingRouteData, setPendingRouteData] = useState(null);
   const [pendingSlotIndex, setPendingSlotIndex] = useState(null); 
-  const [pendingNodeData, setPendingNodeData] = useState(null);
-  const [isRelocating, setIsRelocating] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '', type: 'stop_point', vehicles: { tricycle: false, jeep: false, bus: false, ebus: false },
@@ -493,9 +491,8 @@ export default function RouteManager() {
       click: (e) => {
         if (!isModalOpen) {
           setTempPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
-          if (mapInstruction && !isRelocating) setMapInstruction(null);
-          if (isRelocating) { setIsRelocating(false); setMapInstruction(null); openModal('ADD_NODE', null, true); } 
-          else { openModal('ADD_NODE'); }
+          if (mapInstruction) setMapInstruction(null);
+          openModal('ADD_NODE');
         }
       }
     });
@@ -507,8 +504,7 @@ export default function RouteManager() {
     let targetId = data ? data.id : (editingId || null);
 
     if (mode === 'ADD_NODE') {
-      if (isResumeRelocation && pendingNodeData) { setFormData(pendingNodeData); setPendingNodeData(null); } 
-      else if (data) {
+      if (data) {
         const isTri = data.allowed_vehicles?.includes('tricycle') || false;
         const isJeep = data.allowed_vehicles?.includes('jeep') || false;
         const isBus = data.allowed_vehicles?.includes('bus') || false;
@@ -555,16 +551,6 @@ export default function RouteManager() {
       setMapInstruction("Click on the map to place the new Stop Point");
   };
 
-  const handleRelocateClick = () => {
-      setPendingNodeData(formData);
-      setIsRelocating(true);
-      setIsModalOpen(false);
-      if (activeView !== 'map') setPreviousView(activeView);
-      setActiveView('map');
-      if (tempPoint) setFocusLocation({ lat: tempPoint.lat, lng: tempPoint.lng });
-      setMapInstruction("Click new location on the map for this stop");
-  };
-
   const handleNodeSaved = (newNodeId) => {
       if (pendingRouteData) {
           if (pendingSlotIndex !== null && newNodeId) {
@@ -579,7 +565,7 @@ export default function RouteManager() {
   const handleCancelInstruction = () => {
       setMapInstruction(null); 
       const wasSelecting = selectionMode !== null;
-      setSelectionMode(null); setPendingSlotIndex(null); setIsRelocating(false); setPendingNodeData(null); setInlineEditTarget(null);
+      setSelectionMode(null); setPendingSlotIndex(null); setInlineEditTarget(null);
 
       if (pendingRouteData || wasSelecting) { openModal('ADD_ROUTE'); } 
       else if (editingId && !pendingRouteData) { const originalStop = stops.find(s => s.id === editingId); if (originalStop) openModal('ADD_NODE', originalStop); } 
@@ -640,10 +626,11 @@ export default function RouteManager() {
 
     let error, savedId;
     if (editingId) {
+      // For updates, we DO NOT update the location. 
       const { error: err } = await supabase.from('stops').update(payload).eq('id', editingId);
-      if (tempPoint) { await supabase.from('stops').update({ location: `POINT(${tempPoint.lng} ${tempPoint.lat})`, lat: tempPoint.lat, lng: tempPoint.lng }).eq('id', editingId); }
       error = err; savedId = editingId;
     } else {
+      // For new inserts, we use the clicked tempPoint
       const { data, error: err } = await supabase.from('stops').insert({ ...payload, location: `POINT(${tempPoint.lng} ${tempPoint.lat})` }).select();
       error = err; if (data && data.length > 0) savedId = data[0].id;
     }
@@ -705,7 +692,7 @@ export default function RouteManager() {
     if (deleteTimer > 0) { const timeout = setTimeout(() => { setDeleteTimer(prev => prev - 1); }, 1000); return () => clearTimeout(timeout); }
   }, [deleteTimer]);
 
-  const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setIsRelocating(false); setPendingNodeData(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
+  const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
 
   // SECURE RENDER: If Timeout, HIDE Dashboard content entirely
   if (isSessionTimeout) {
@@ -780,13 +767,12 @@ export default function RouteManager() {
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <MapClicker />
                     <MapController focusLocation={focusLocation} />
-                    {!isRelocating && routes.map(r => r.parsedPolyline && <GeoJSON key={`route-${r.id}-${hoveredRouteId === r.id ? 'focused' : 'dimmed'}`} data={r.parsedPolyline} style={() => ({ color: getRouteColor(r.mode), weight: hoveredRouteId === r.id ? 8 : 5, opacity: hoveredRouteId ? (hoveredRouteId === r.id ? 1 : 0.1) : 0.8 })} />)}
-                    {!isRelocating && stops.map(s => (
+                    {routes.map(r => r.parsedPolyline && <GeoJSON key={`route-${r.id}-${hoveredRouteId === r.id ? 'focused' : 'dimmed'}`} data={r.parsedPolyline} style={() => ({ color: getRouteColor(r.mode), weight: hoveredRouteId === r.id ? 8 : 5, opacity: hoveredRouteId ? (hoveredRouteId === r.id ? 1 : 0.1) : 0.8 })} />)}
+                    {stops.map(s => (
                         <Marker key={s.id} position={[s.lat, s.lng]} icon={getIcon(s)} eventHandlers={{ click: () => handlePinClick(s) }}>
                         {selectionMode === null && <Popup><strong>{s.name}</strong><br/><span style={{fontSize:'0.8rem', color: '#666', textTransform:'capitalize'}}>{s.type.replace('_', ' ')}</span><div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}><button onClick={() => openModal('ADD_NODE', s)} style={{ flex:1, color: 'white', background: '#3b82f6', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Edit</button><button onClick={() => deleteItemWithConfirmation('stops', s.id, s.name)} style={{ flex:1, color: 'white', background: '#ef4444', border: 'none', borderRadius:'4px', padding:'6px', cursor: 'pointer' }}>Delete</button></div></Popup>}
                         </Marker>
                     ))}
-                    {isRelocating && tempPoint && <Marker position={[tempPoint.lat, tempPoint.lng]} icon={getIcon({ type: formData.type, allowed_vehicles: Object.keys(formData.vehicles).filter(k => formData.vehicles[k]) })} zIndexOffset={1000} />}
                 </MapContainer>
                 {mapInstruction && <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', padding: '8px 12px 8px 16px', borderRadius: '50px', fontWeight: '500', boxShadow: '0 4px 15px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '16px', backdropFilter: 'blur(4px)' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MousePointer2 size={16} color="#3b82f6" /> {mapInstruction}</span><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><button onClick={handleCancelInstruction} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '20px', color: 'white', cursor: 'pointer', padding: '6px 12px', fontSize: '0.85rem', fontWeight: '600' }}>Cancel</button>{selectionMode !== null && <button onClick={() => handleCreateStopFromRoute(selectionMode)} style={{ background: '#10b981', border: 'none', borderRadius: '20px', color: 'white', cursor: 'pointer', padding: '6px 14px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}><PlusCircle size={14} /> Create Stop</button>}</div></div>}
              </div>
@@ -849,7 +835,6 @@ export default function RouteManager() {
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                        {editingId && <button onClick={handleRelocateClick} title="Move pin" style={{ flex: 0.5, padding: '12px', background: '#e0f2fe', color: '#0ea5e9', borderRadius: '8px', border: '1px solid #bae6fd', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Crosshair size={20} /></button>}
                         <button onClick={closeModal} style={{ flex: 1, padding: '12px', background: '#f9fafb', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                         <button onClick={saveNode} style={{ flex: 1, padding: '12px', background: '#10b981', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>{editingId ? 'Update' : 'Save Location'}</button>
                     </div>
@@ -874,15 +859,15 @@ export default function RouteManager() {
                                 const isFirst = index === 0; const isLast = index === formData.routeStops.length - 1;
                                 return (
                                     <div key={index} draggable onDragStart={(e) => dragStart(e, index)} onDragEnter={(e) => dragEnter(e, index)} onDragEnd={drop} onDragOver={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'move' }}>
-                                        <GripVertical size={20} style={{ color: '#99f6e4' }} />
-                                        <div style={{ width: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>{isFirst ? <div style={{width: 12, height: 12, borderRadius: '50%', background: '#16a34a'}}></div> : isLast ? <MapPin size={18} color="#ef4444" /> : <div style={{width: 10, height: 10, borderRadius: '50%', background: '#9ca3af'}}></div>}</div>
-                                        <div style={{ flex: 1 }}><SearchableSelect placeholder={`Select ${isFirst ? 'Origin' : isLast ? 'Destination' : 'Waypoint'}...`} options={stops} value={stopId} onChange={(id) => handleRouteStopChange(index, id)} /></div>
-                                        <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                                            <button onClick={() => handleCreateStopFromRoute(index)} style={{ background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><Plus size={16} /></button>
-                                            <button onClick={() => initiateSelectionMode(index)} style={{ background: selectionMode === index ? '#3b82f6' : '#f3f4f6', color: selectionMode === index ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
-                                            {!isFirst && !isLast && <button onClick={() => removeRouteStopSlot(index)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}><Trash2 size={18} /></button>}
-                                            {(isFirst || isLast) && <div style={{width: 34}}></div>}
-                                        </div>
+                                            <GripVertical size={20} style={{ color: '#99f6e4' }} />
+                                            <div style={{ width: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>{isFirst ? <div style={{width: 12, height: 12, borderRadius: '50%', background: '#16a34a'}}></div> : isLast ? <MapPin size={18} color="#ef4444" /> : <div style={{width: 10, height: 10, borderRadius: '50%', background: '#9ca3af'}}></div>}</div>
+                                            <div style={{ flex: 1 }}><SearchableSelect placeholder={`Select ${isFirst ? 'Origin' : isLast ? 'Destination' : 'Waypoint'}...`} options={stops} value={stopId} onChange={(id) => handleRouteStopChange(index, id)} /></div>
+                                            <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                                                <button onClick={() => handleCreateStopFromRoute(index)} style={{ background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><Plus size={16} /></button>
+                                                <button onClick={() => initiateSelectionMode(index)} style={{ background: selectionMode === index ? '#3b82f6' : '#f3f4f6', color: selectionMode === index ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}><MapIcon size={16} /></button>
+                                                {!isFirst && !isLast && <button onClick={() => removeRouteStopSlot(index)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}><Trash2 size={18} /></button>}
+                                                {(isFirst || isLast) && <div style={{width: 34}}></div>}
+                                            </div>
                                     </div>
                                 );
                             })}

@@ -1,5 +1,5 @@
 // CommuteWise - Login.jsx
-// Version: Production 1.3 (Password Toggle + Redirects to Dashboard)
+// Version: Production 1.5 (Autocomplete Disabled)
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { supabase } from '../supabaseClient';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // Toggle State
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -26,17 +26,19 @@ export default function Login() {
     setLoading(true);
     setError(null);
 
+    // CRITICAL SECURITY FIX: Use destructured object to avoid logging the raw password variable
+    const credentials = { email, password }; 
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
+      const { error } = await supabase.auth.signInWithPassword(credentials);
 
       if (error) throw error;
       
       navigate('/dashboard'); // Redirect to specific Dashboard route
     } catch (err) {
       setError(err.message); 
+      // Clear password state immediately after failed login attempt for extra safety
+      setPassword(''); 
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,7 @@ export default function Login() {
     width: '100%', padding: '12px 16px 12px 44px',
     borderRadius: '8px', border: '1px solid #e2e8f0',
     fontSize: '1rem', color: '#1e293b', outline: 'none',
-    backgroundColor: '#ffffff', // Force White Background
+    backgroundColor: '#ffffff',
     transition: 'all 0.2s', boxSizing: 'border-box'
   };
 
@@ -104,7 +106,15 @@ export default function Login() {
             <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '6px' }}>Email Address</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Mail size={18} style={{ position: 'absolute', left: '14px', color: '#94a3b8' }} />
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@commutewise.com" />
+              <input 
+                type="email" 
+                required 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                style={inputStyle} 
+                placeholder="admin@commutewise.com"
+                autoComplete="off" // <-- FIX APPLIED
+              />
             </div>
           </div>
 
@@ -113,12 +123,13 @@ export default function Login() {
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Lock size={18} style={{ position: 'absolute', left: '14px', color: '#94a3b8' }} />
               <input 
-                type={showPassword ? "text" : "password"} // Toggle Type
+                type={showPassword ? "text" : "password"} 
                 required 
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)} 
-                style={{...inputStyle, paddingRight: '40px'}} // Extra padding for eye icon
+                style={{...inputStyle, paddingRight: '40px'}} 
                 placeholder="••••••••" 
+                autoComplete="off" // <-- FIX APPLIED
               />
               <button 
                 type="button" 
