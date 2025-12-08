@@ -1,5 +1,5 @@
 // CommuteWise - Login.jsx
-// Version: Production 1.5 (Autocomplete Disabled)
+// Version: Production 1.6 (Session Timeout Notification)
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,15 @@ export default function Login() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  // Check for session timeout flag on mount
+  useEffect(() => {
+    const didTimeout = sessionStorage.getItem('didSessionTimeout');
+    if (didTimeout) {
+      setError("Session expired due to inactivity. Please log in again.");
+      sessionStorage.removeItem('didSessionTimeout'); // Clear flag
+    }
+  }, []);
+
   // If already logged in, go to Dashboard
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -26,7 +35,6 @@ export default function Login() {
     setLoading(true);
     setError(null);
 
-    // CRITICAL SECURITY FIX: Use destructured object to avoid logging the raw password variable
     const credentials = { email, password }; 
 
     try {
@@ -34,10 +42,9 @@ export default function Login() {
 
       if (error) throw error;
       
-      navigate('/dashboard'); // Redirect to specific Dashboard route
+      navigate('/dashboard'); 
     } catch (err) {
       setError(err.message); 
-      // Clear password state immediately after failed login attempt for extra safety
       setPassword(''); 
     } finally {
       setLoading(false);
@@ -93,7 +100,7 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Error Notification */}
+        {/* Error/Info Notification */}
         {error && (
           <div style={{ backgroundColor: '#fef2f2', color: '#b91c1c', padding: '12px', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid #fecaca' }}>
             <AlertCircle size={18} /> <span>{error}</span>
@@ -113,7 +120,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)} 
                 style={inputStyle} 
                 placeholder="admin@commutewise.com"
-                autoComplete="off" // <-- FIX APPLIED
+                autoComplete="off" 
               />
             </div>
           </div>
@@ -129,7 +136,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)} 
                 style={{...inputStyle, paddingRight: '40px'}} 
                 placeholder="••••••••" 
-                autoComplete="off" // <-- FIX APPLIED
+                autoComplete="off" 
               />
               <button 
                 type="button" 

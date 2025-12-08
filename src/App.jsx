@@ -1,5 +1,5 @@
 // CommuteWise - App.jsx
-// Version: Production 1.2 (Admin Routes Updated)
+// Version: Production 1.3 (Global Session Timeout Fix)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
@@ -25,8 +25,11 @@ const ActivityTracker = () => {
 
     const handleInactivityTimeout = async () => {
         console.log("Session timed out due to inactivity.");
+        // Set flag so Login page knows why we are here
+        sessionStorage.setItem('didSessionTimeout', 'true');
+        
         await supabase.auth.signOut();
-        navigate('/admin-login', { replace: true }); // Redirects to new Login URL
+        navigate('/admin-login', { replace: true }); 
     };
 
     const resetTimer = () => {
@@ -76,7 +79,7 @@ const ProtectedRoute = ({ children }) => {
   }
   
   if (!session) {
-    return <Navigate to="/admin-login" replace />; // Redirects to new Login URL
+    return <Navigate to="/admin-login" replace />; 
   }
 
   return (
@@ -93,7 +96,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         
-        {/* PUBLIC ROUTE: NEW URL */}
+        {/* PUBLIC ROUTE */}
         <Route path="/admin-login" element={<Login />} />
         
         {/* PROTECTED ROUTES */}
@@ -102,7 +105,6 @@ function App() {
             <AdminLayout />
           </ProtectedRoute>
         }>
-          {/* Redirect root '/' to '/dashboard' */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           
           <Route path="dashboard" element={<Dashboard />} />
@@ -112,7 +114,7 @@ function App() {
           <Route path="admin-management" element={<AdminManagement />} />
         </Route>
 
-        {/* Catch-all: Redirect to Dashboard */}
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
       </Routes>

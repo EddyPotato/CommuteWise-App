@@ -1,5 +1,5 @@
 // CommuteWise - RouteManager.jsx
-// Version: December 6, 2025 - 17.1 (Simplified: Removed Move Pin Functionality)
+// Version: Production 1.8 (Added Creation Warning & Removed Local Tracker)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
@@ -9,10 +9,11 @@ import {
   Trash2, Network, X, Search, Edit2, 
   ChevronDown, ChevronRight, Map as MapIcon, 
   List, LayoutGrid, Ticket, Plus, 
-  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Clock, Ruler, Info, Save, Ban, LogOut
+  MapPin, GripVertical, AlertCircle, CheckCircle, AlertTriangle, MousePointer2, PlusCircle, Clock, Ruler, Info, Save, Ban
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import KPICard from 'leaflet/dist/images/marker-icon.png'; // Note: Ensure this import path is correct for your setup
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -27,7 +28,6 @@ const styles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(156, 163, 175, 0.6); }
   .scrollbar-stable { scrollbar-gutter: stable; }
    
-  /* Force Checkbox Visibility & Light Mode */
   input[type="checkbox"] { 
     accent-color: #3b82f6; 
     cursor: pointer; 
@@ -53,7 +53,7 @@ const LABEL_STYLE = {
   display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151', fontSize: '0.9rem'
 };
 
-// --- UTILS: HIGHLIGHTING (FIXED: Seamless merging) ---
+// --- UTILS: HIGHLIGHTING ---
 const escapeRegExp = (string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
@@ -66,7 +66,6 @@ const HighlightText = ({ text, highlight }) => {
         <>
             {parts.map((part, i) => 
                 regex.test(part) ? (
-                    // Removed borderRadius to prevents gaps between adjacent matches like "bagbag"
                     <span key={i} style={{ backgroundColor: '#fef08a', color: 'inherit', padding: 0, margin: 0 }}>{part}</span>
                 ) : ( part )
             )}
@@ -344,20 +343,6 @@ const RouteCard = ({ route, stops, onDelete, onMapSelect, onUpdate, highlightTer
     );
 };
 
-// --- TIMEOUT MODAL (HIGH Z-INDEX) ---
-const SessionTimeoutModal = ({ onClose }) => (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
-        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', textAlign: 'center', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
-            <div style={{ width: '60px', height: '60px', backgroundColor: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
-                <LogOut size={32} color="#ef4444" />
-            </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '10px' }}>Session Expired</h2>
-            <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>You have been logged out due to inactivity. Please log in again to continue.</p>
-            <button onClick={onClose} style={{ width: '100%', padding: '12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer' }}>Return to Login</button>
-        </div>
-    </div>
-);
-
 export default function RouteManager() {
   const [activeView, setActiveView] = useState('map'); 
   const [previousView, setPreviousView] = useState(null); 
@@ -376,11 +361,8 @@ export default function RouteManager() {
   const [hoveredRouteId, setHoveredRouteId] = useState(null); 
   const [deleteTimer, setDeleteTimer] = useState(null);
   const [focusLocation, setFocusLocation] = useState(null); 
-  const [isSessionTimeout, setIsSessionTimeout] = useState(false); 
   const [inlineEditTarget, setInlineEditTarget] = useState(null);
 
-  // --- REAL ACTIVITY TRACKER ---
-  const lastActivityRef = useRef(Date.now());
   const dragItem = useRef();
   const dragOverItem = useRef();
   const [pendingRouteData, setPendingRouteData] = useState(null);
@@ -392,43 +374,6 @@ export default function RouteManager() {
     eta: '15', fare: '15', discountedFare: '12', barangay: '', isFreeRide: false
   });
 
-  // Track User Events to Reset Timer
-  useEffect(() => {
-    const handleUserActivity = () => { lastActivityRef.current = Date.now(); };
-    window.addEventListener('mousemove', handleUserActivity);
-    window.addEventListener('keydown', handleUserActivity);
-    window.addEventListener('click', handleUserActivity);
-    window.addEventListener('scroll', handleUserActivity);
-    
-    const INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 mins
-    const WARNING_BEFORE_MS = 10000; // 10s
-
-    const interval = setInterval(() => {
-        const idleTime = Date.now() - lastActivityRef.current;
-        if (idleTime >= INACTIVITY_LIMIT_MS) {
-            setIsSessionTimeout(true);
-            setNotification(null); // Clear warning when modal shows
-        } else if (idleTime >= (INACTIVITY_LIMIT_MS - WARNING_BEFORE_MS)) {
-            if (!isSessionTimeout) {
-                const remaining = Math.ceil((INACTIVITY_LIMIT_MS - idleTime) / 1000);
-                // Persistent Sticky Notification
-                setNotification({ message: `Session expiring in ${remaining}s due to inactivity. Move mouse to cancel.`, type: 'warning', sticky: true });
-            }
-        } else {
-             // Clear warning if user becomes active again
-             setNotification(prev => (prev?.type === 'warning' ? null : prev));
-        }
-    }, 1000);
-
-    return () => {
-        window.removeEventListener('mousemove', handleUserActivity);
-        window.removeEventListener('keydown', handleUserActivity);
-        window.removeEventListener('click', handleUserActivity);
-        window.removeEventListener('scroll', handleUserActivity);
-        clearInterval(interval);
-    };
-  }, [isSessionTimeout]);
-
   // General Fetching
   useEffect(() => { fetchData(); }, []);
   
@@ -439,12 +384,6 @@ export default function RouteManager() {
           return () => clearTimeout(timer); 
       } 
   }, [notification]);
-
-  // FORCE LOGOUT HANDLER
-  const handleForceLogout = async () => {
-      await supabase.auth.signOut();
-      window.location.href = '/'; // Hard redirect to Login
-  };
 
   const fetchData = async () => {
     const { data: sData } = await supabase.from('stops').select('*, lat, lng');
@@ -626,11 +565,9 @@ export default function RouteManager() {
 
     let error, savedId;
     if (editingId) {
-      // For updates, we DO NOT update the location. 
       const { error: err } = await supabase.from('stops').update(payload).eq('id', editingId);
       error = err; savedId = editingId;
     } else {
-      // For new inserts, we use the clicked tempPoint
       const { data, error: err } = await supabase.from('stops').insert({ ...payload, location: `POINT(${tempPoint.lng} ${tempPoint.lat})` }).select();
       error = err; if (data && data.length > 0) savedId = data[0].id;
     }
@@ -694,16 +631,11 @@ export default function RouteManager() {
 
   const closeModal = () => { setIsModalOpen(false); setEditingId(null); setTempPoint(null); setSelectionMode(null); setDeleteTimer(null); setInlineEditTarget(null); if (previousView) { setActiveView(previousView); setPreviousView(null); } };
 
-  // SECURE RENDER: If Timeout, HIDE Dashboard content entirely
-  if (isSessionTimeout) {
-      return <SessionTimeoutModal onForceLogout={handleForceLogout} />;
-  }
-
   return (
     <div style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <style>{styles}</style>
       
-      {/* NOTIFICATION (BOTTOM RIGHT) */}
+      {/* NOTIFICATION */}
       {notification && (
           <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 2000, backgroundColor: notification.type === 'error' ? '#fee2e2' : notification.type === 'warning' ? '#fffbeb' : '#dcfce7', border: `1px solid ${notification.type === 'error' ? '#ef4444' : notification.type === 'warning' ? '#f59e0b' : '#22c55e'}`, color: notification.type === 'error' ? '#b91c1c' : notification.type === 'warning' ? '#b45309' : '#15803d', padding: '16px 20px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '12px', animation: 'slideIn 0.3s ease-out', pointerEvents: 'auto', minWidth: '300px' }}>
             {notification.type === 'error' ? <AlertCircle size={24}/> : notification.type === 'warning' ? <AlertTriangle size={24} /> : <CheckCircle size={24}/>} 
@@ -834,6 +766,16 @@ export default function RouteManager() {
                             </div>
                         </div>
                     )}
+
+                    {/* NEW WARNING BLOCK */}
+                    <div style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '8px', padding: '12px', marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <AlertTriangle size={20} color="#ea580c" style={{ marginTop: '2px', flexShrink: 0 }} />
+                        <div>
+                             <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#9a3412', marginBottom: '2px' }}>Check Location Precisely</div>
+                             <div style={{ fontSize: '0.8rem', color: '#c2410c', lineHeight: '1.4' }}>Once created, this stop point or terminal <strong>cannot be moved</strong>. Only the name and details can be edited later.</div>
+                        </div>
+                    </div>
+
                     <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                         <button onClick={closeModal} style={{ flex: 1, padding: '12px', background: '#f9fafb', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                         <button onClick={saveNode} style={{ flex: 1, padding: '12px', background: '#10b981', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>{editingId ? 'Update' : 'Save Location'}</button>
